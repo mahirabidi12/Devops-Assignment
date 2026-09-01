@@ -1,0 +1,6 @@
+.DS_Store
+node_modules/
+dist/
+
+
+task-2-shell-scripting/sysreport/
