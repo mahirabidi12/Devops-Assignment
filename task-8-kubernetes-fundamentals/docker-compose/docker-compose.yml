@@ -1,0 +1,46 @@
+services:
+  frontend:
+    image: nginx:alpine
+    container_name: frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./website/index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      - frontend-net
+    depends_on:
+      - backend
+
+  backend:
+    image: alpine
+    container_name: backend
+    command: sleep infinity
+    networks:
+      - frontend-net
+      - backend-net
+    depends_on:
+      database:
+        condition: service_healthy
+
+  database:
+    image: mysql:8.0
+    container_name: database
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: appdb
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+networks:
+  frontend-net:
+  backend-net:
+
+volumes:
+  db-data:
