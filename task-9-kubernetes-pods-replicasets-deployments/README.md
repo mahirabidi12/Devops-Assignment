@@ -30,8 +30,8 @@ a `busybox` sidecar looping an `echo`.
     pod/mypod created
 
     $ kubectl get pod mypod -o wide
-    NAME    READY   STATUS    RESTARTS   AGE     IP           NODE
-    mypod   2/2     Running   0          4m43s   10.244.1.2   devops-worker
+    NAME    READY   STATUS    RESTARTS   AGE   IP            NODE            NOMINATED NODE   READINESS GATES
+    mypod   2/2     Running   0          48s   10.244.1.43   devops-worker   <none>           <none>
 
     $ kubectl get pod mypod -o jsonpath='{range .spec.containers[*]}{.name}{"  "}{.image}{"\n"}{end}'
     app  nginx
@@ -49,6 +49,8 @@ A bare pod like this has nothing watching it. Delete it and it is simply gone, w
 why pods are almost never created directly. Everything below exists to manage pods on
 your behalf.
 
+![A two container pod, both containers ready](screenshots/01-pod-multi-container.png)
+
 ## 2. ReplicaSet
 
 A ReplicaSet keeps a stable number of identical pod replicas running. It guarantees the
@@ -58,37 +60,39 @@ one directly, but in practice a Deployment manages it for you.
     $ kubectl apply -f manifests/replicaset.yml
     replicaset.apps/myapp-rs created
 
-    $ kubectl get rs
+    $ kubectl get rs myapp-rs
     NAME       DESIRED   CURRENT   READY   AGE
-    myapp-rs   3         3         3       4m43s
+    myapp-rs   3         3         3       44s
 
     $ kubectl get pods -l app=web -o wide
-    NAME             READY   STATUS    RESTARTS   AGE     IP           NODE
-    myapp-rs-pg7zw   1/1     Running   0          4m43s   10.244.2.2   devops-worker2
-    myapp-rs-qm7pj   1/1     Running   0          4m43s   10.244.2.3   devops-worker2
-    myapp-rs-zs94t   1/1     Running   0          4m43s   10.244.1.3   devops-worker
+    NAME             READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE   READINESS GATES
+    myapp-rs-4rlls   1/1     Running   0          44s   10.244.2.53   devops-worker2   <none>           <none>
+    myapp-rs-dv9mx   1/1     Running   0          44s   10.244.1.44   devops-worker    <none>           <none>
+    myapp-rs-nfz84   1/1     Running   0          44s   10.244.2.54   devops-worker2   <none>           <none>
 
 Names are generated with a random suffix, and the scheduler spread them across both
 workers without being asked to.
 
 ### Proving it self-heals
 
-    $ kubectl delete pod myapp-rs-pg7zw
-    pod "myapp-rs-pg7zw" deleted from default namespace
+    $ kubectl delete pod myapp-rs-4rlls
+    pod "myapp-rs-4rlls" deleted from default namespace
 
     $ kubectl get pods -l app=web
     NAME             READY   STATUS    RESTARTS   AGE
-    myapp-rs-qm7pj   1/1     Running   0          5m1s
-    myapp-rs-rphqp   1/1     Running   0          8s
-    myapp-rs-zs94t   1/1     Running   0          5m1s
+    myapp-rs-54xzn   1/1     Running   0          10s
+    myapp-rs-dv9mx   1/1     Running   0          55s
+    myapp-rs-nfz84   1/1     Running   0          55s
 
-Still three. `myapp-rs-pg7zw` is gone for good and `myapp-rs-rphqp` is a brand new pod,
-8 seconds old. This is the reconciliation loop from the architecture notes in action: the
+Still three. `myapp-rs-4rlls` is gone for good and `myapp-rs-54xzn` is a brand new pod,
+10 seconds old. This is the reconciliation loop from the architecture notes in action: the
 controller observed 2 against a desired 3 and created one. Note it is a *replacement*,
 not a restart, so the name and the IP are both different.
 
 The selector is what ties them together. `myapp-rs` owns pods matching `app: web`, and it
 counts whatever carries that label.
+
+![Deleting a pod and the ReplicaSet replacing it](screenshots/02-replicaset-selfheal.png)
 
 ## 3. Deployment
 
@@ -100,14 +104,14 @@ scales them.
     $ kubectl apply -f manifests/deployment.yml
     deployment.apps/myapp created
 
-    $ kubectl get deploy
+    $ kubectl get deploy myapp
     NAME    READY   UP-TO-DATE   AVAILABLE   AGE
-    myapp   3/3     3            3           4m43s
+    myapp   3/3     3            3           58s
 
-    $ kubectl get rs
-    NAME               DESIRED   CURRENT   READY   AGE
-    myapp-5b9587f95d   3         3         3       4m43s
-    myapp-rs           3         3         3       4m43s
+    $ kubectl get rs | grep -E 'NAME|myapp'
+    NAME                             DESIRED   CURRENT   READY   AGE
+    myapp-5b9587f95d                 3         3         3       58s
+    myapp-rs                         3         3         3       65s
 
 `myapp-5b9587f95d` was created by the Deployment; the hash in the name is derived from
 the pod template. `myapp-rs` is the standalone ReplicaSet from the previous section, and
@@ -124,11 +128,11 @@ it is unrelated.
     Waiting for deployment "myapp" rollout to finish: 1 old replicas are pending termination...
     deployment "myapp" successfully rolled out
 
-    $ kubectl get rs
-    NAME               DESIRED   CURRENT   READY   AGE
-    myapp-5b9587f95d   0         0         0       5m33s
-    myapp-754cfcff96   3         3         3       23s
-    myapp-rs           3         3         3       5m33s
+    $ kubectl get rs | grep -E 'NAME|myapp'
+    NAME                             DESIRED   CURRENT   READY   AGE
+    myapp-5b9587f95d                 0         0         0       66s
+    myapp-754cfcff96                 3         3         3       8s
+    myapp-rs                         3         3         3       73s
 
 This is the mechanism, visible in one table. A second ReplicaSet `myapp-754cfcff96`
 appeared for the new template and was scaled up to 3 while the original was scaled down
@@ -138,9 +142,12 @@ makes a rollback cheap.
 The progress messages show it was incremental, never taking all three down at once, which
 is what "zero downtime" means here.
 
+![A rolling update, one ReplicaSet up as the other goes down](screenshots/03-rolling-update.png)
+
 ### Rollback
 
     $ kubectl rollout history deployment/myapp
+    deployment.apps/myapp
     REVISION  CHANGE-CAUSE
     1         <none>
     2         <none>
@@ -148,10 +155,14 @@ is what "zero downtime" means here.
     $ kubectl rollout undo deployment/myapp
     deployment.apps/myapp rolled back
 
-    $ kubectl get rs
-    NAME               DESIRED   CURRENT   READY   AGE
-    myapp-5b9587f95d   3         3         3       5m40s
-    myapp-754cfcff96   0         0         0       30s
+    $ kubectl get rs | grep -E 'NAME|myapp'
+    NAME                             DESIRED   CURRENT   READY   AGE
+    myapp-5b9587f95d                 3         3         3       95s
+    myapp-754cfcff96                 0         0         0       37s
+    myapp-rs                         3         3         3       102s
+
+    $ kubectl describe deployment myapp | grep -i 'image:'
+        Image:         nginx
 
 The two ReplicaSets swapped back. Nothing was rebuilt or re-pulled from a registry; the
 old ReplicaSet was simply scaled up again.
@@ -160,6 +171,8 @@ old ReplicaSet was simply scaled up again.
 `kubectl set image`. Adding `--record` (deprecated) or annotating with
 `kubernetes.io/change-cause` is what populates that column, and it is worth doing on a
 shared cluster so the history is readable.
+
+![Rolling back by scaling the old ReplicaSet up again](screenshots/04-rollback.png)
 
 ## 4. DaemonSet
 
@@ -180,13 +193,13 @@ about a node can only be gathered from that node.
     daemonset.apps/node-exporter created
 
     $ kubectl get ds -o wide
-    NAME            DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   CONTAINERS      IMAGES
-    node-exporter   2         2         2       2            2           node-exporter   prom/node-exporter
+    NAME            DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS      IMAGES               SELECTOR
+    node-exporter   2         2         2       2            2           <none>          3s    node-exporter   prom/node-exporter   app=node-exporter
 
     $ kubectl get pods -l app=node-exporter -o wide
-    NAME                  READY   STATUS    RESTARTS   AGE     IP           NODE
-    node-exporter-6jwjc   1/1     Running   0          4m35s   10.244.1.5   devops-worker
-    node-exporter-942jg   1/1     Running   0          4m35s   10.244.2.6   devops-worker2
+    NAME                  READY   STATUS    RESTARTS   AGE   IP            NODE             NOMINATED NODE   READINESS GATES
+    node-exporter-6dfql   1/1     Running   0          3s    10.244.2.62   devops-worker2   <none>           <none>
+    node-exporter-msrml   1/1     Running   0          3s    10.244.1.48   devops-worker    <none>           <none>
 
 ### Why DESIRED is 2 and not 3
 
@@ -204,6 +217,8 @@ A monitoring DaemonSet in production would normally want the control plane too, 
 there by adding a toleration for that taint. Note DESIRED went to 2 on its own rather
 than leaving a pod `Pending`, which is the difference between a taint being respected by
 a controller and a pod that simply cannot be placed.
+
+![Two DaemonSet pods, and the taint that explains why](screenshots/05-daemonset.png)
 
 ## 5. StatefulSet
 
@@ -227,51 +242,60 @@ Typical uses: distributed databases (Cassandra, MongoDB, MySQL clusters), messag
     statefulset.apps/mysql created
 
     $ kubectl rollout status statefulset/mysql
+    Waiting for 3 pods to be ready...
+    Waiting for 3 pods to be ready...
+    Waiting for 2 pods to be ready...
+    Waiting for 2 pods to be ready...
+    Waiting for 1 pods to be ready...
     Waiting for 1 pods to be ready...
     partitioned roll out complete: 3 new pods have been updated...
 
-    $ kubectl get sts
+    $ kubectl get sts mysql
     NAME    READY   AGE
-    mysql   3/3     2m24s
+    mysql   3/3     3m1s
 
-    $ kubectl get pods -l app=mysql -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName,IP:.status.podIP
+    $ kubectl get pods -l app=mysql -o 'custom-columns=NAME:.metadata.name,NODE:.spec.nodeName,IP:.status.podIP'
     NAME      NODE             IP
-    mysql-0   devops-worker    10.244.1.7
-    mysql-1   devops-worker2   10.244.2.11
-    mysql-2   devops-worker    10.244.1.9
+    mysql-0   devops-worker2   10.244.2.64
+    mysql-1   devops-worker    10.244.1.51
+    mysql-2   devops-worker2   10.244.2.66
 
-Ordinal names, not random suffixes. The AGE values during creation confirmed the ordering
-too: `mysql-0` was 2m24s old when `mysql-1` was 96s and `mysql-2` was 21s, because each
-waits for the previous one to be Ready before starting.
+Ordinal names, not random suffixes. The `rollout status` output above is the ordering made
+visible: it counted down from three pods waiting, to two, to one, because each pod only
+starts once the previous one is Ready. A Deployment would have started all three at once.
 
 ### One PVC per pod, created automatically
 
-    $ kubectl get pvc
+    $ kubectl get pvc -o 'custom-columns=NAME:.metadata.name,STATUS:.status.phase,VOLUME:.spec.volumeName,CAPACITY:.status.capacity.storage,STORAGECLASS:.spec.storageClassName'
     NAME                               STATUS   VOLUME                                     CAPACITY   STORAGECLASS
-    mysql-persistent-storage-mysql-0   Bound    pvc-4f28dcea-c554-4555-863a-c2bb9b7424f1   5Gi        standard
-    mysql-persistent-storage-mysql-1   Bound    pvc-cd0207e0-7225-4e79-b65e-fbbb6c85995d   5Gi        standard
-    mysql-persistent-storage-mysql-2   Bound    pvc-ee1be97a-23dd-4103-89ae-562f8e45ddd8   5Gi        standard
+    mysql-persistent-storage-mysql-0   Bound    pvc-468f487e-07ac-4a0e-905f-9206983c7dea   5Gi        standard
+    mysql-persistent-storage-mysql-1   Bound    pvc-b75a1bf3-72b5-4861-b162-2954f1449a05   5Gi        standard
+    mysql-persistent-storage-mysql-2   Bound    pvc-3e331db6-5923-49b7-b215-e4bc163225ff   5Gi        standard
 
 The `volumeClaimTemplates` block generated one claim per pod, each named after the pod.
 A Deployment cannot do this; all its replicas would share whatever volume the template
 names.
+
+![Ordinal pods and one PVC per pod](screenshots/06-statefulset.png)
 
 ### Proving the identity is stable
 
     $ kubectl delete pod mysql-1
     pod "mysql-1" deleted from default namespace
 
-    $ kubectl get pods -l app=mysql -o custom-columns=NAME:...,IP:...,NODE:...,PVC:...
+    $ kubectl get pods -l app=mysql -o 'custom-columns=NAME:.metadata.name,IP:.status.podIP,NODE:.spec.nodeName,PVC:.spec.volumes[0].persistentVolumeClaim.claimName'
     NAME      IP            NODE             PVC
-    mysql-0   10.244.1.7    devops-worker    mysql-persistent-storage-mysql-0
-    mysql-1   10.244.2.17   devops-worker2   mysql-persistent-storage-mysql-1
-    mysql-2   10.244.1.9    devops-worker    mysql-persistent-storage-mysql-2
+    mysql-0   10.244.2.64   devops-worker2   mysql-persistent-storage-mysql-0
+    mysql-1   10.244.1.52   devops-worker    mysql-persistent-storage-mysql-1
+    mysql-2   10.244.2.66   devops-worker2   mysql-persistent-storage-mysql-2
 
 It came back as `mysql-1`, not as a new random name, and reattached to
 `mysql-persistent-storage-mysql-1`, the same claim and therefore the same data. Only the
-IP changed, from 10.244.2.11 to 10.244.2.17. Compare with the ReplicaSet earlier, where
+IP changed, from 10.244.1.51 to 10.244.1.52. Compare with the ReplicaSet earlier, where
 the replacement pod had a different name entirely. That difference is the whole point of
 the object.
+
+![mysql-1 returning with the same name and the same claim](screenshots/07-statefulset-stable-identity.png)
 
 ### A real problem hit while running this
 
