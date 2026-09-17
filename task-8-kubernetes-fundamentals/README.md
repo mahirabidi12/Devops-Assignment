@@ -17,6 +17,11 @@ how to reach it, and it keeps working to hold the cluster there. That is what
 "declarative" means in practice, and it is why a pod that dies comes back without anyone
 intervening.
 
+The cluster these notes were written against is a three node kind cluster, one control
+plane and two workers:
+
+![kind cluster with three nodes](screenshots/01-cluster-nodes.png)
+
 ## Control plane components
 
 These make the global decisions, such as scheduling, and react to cluster events like a
@@ -82,6 +87,11 @@ core components free of provider specific code.
 
 On a local cluster like kind or minikube this component is absent, which is exactly why a
 `LoadBalancer` Service stays `<pending>` there — nothing is present to fulfil it.
+
+All of the above running as pods in `kube-system`, which is what makes a kubeadm style
+cluster inspectable with the same commands as any other workload:
+
+![control plane components running in kube-system](screenshots/02-control-plane-components.png)
 
 ## Node components
 
@@ -174,6 +184,14 @@ Points worth recording from writing this file:
 - `db-data` is a named volume rather than a bind mount, so the database files are managed
   by Docker and survive `docker compose down` unless `-v` is passed.
 - The bind mount for `index.html` is `:ro`, since the web server only needs to read it.
+
+Brought up, and both claims in this section checked rather than assumed. `depends_on` with
+`condition: service_healthy` is visible in the startup order: the database is waited on
+until it reports healthy, and only then does the backend start. The isolation holds too,
+with the backend able to reach `database` by name while the frontend cannot resolve it at
+all:
+
+![the compose stack up, and the frontend unable to resolve the database](screenshots/03-compose-stack.png)
 
 ### How this maps onto Kubernetes
 
