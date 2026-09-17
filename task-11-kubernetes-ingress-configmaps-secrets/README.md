@@ -96,6 +96,22 @@ The request reached the controller and was rejected, because no rule matches tha
 The `Host` header is being used for routing, not the address, which is why `curl` needs
 `-H "Host: ..."` throughout rather than a real DNS entry.
 
+### Nothing is exposed except through the controller
+
+Both Services behind the Ingress are `ClusterIP`, which is the point of the arrangement:
+
+    $ kubectl get svc yatri-frontend-service yatri-backend-service
+    NAME                     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+    yatri-frontend-service   ClusterIP   10.96.63.92    <none>        80/TCP    54m
+    yatri-backend-service    ClusterIP   10.96.40.121   <none>        80/TCP    54m
+
+![both Services are ClusterIP](screenshots/05-services-clusterip.png)
+
+Neither has an external address, and neither needs one. The only component reachable from
+outside the cluster is the Ingress controller, and it reaches these two over the internal
+network. Replacing the Ingress with two `LoadBalancer` Services would mean two billed
+cloud load balancers and two public addresses to manage.
+
 ### A real problem hit while setting this up
 
 The first attempt returned nothing at all, not even an error:
@@ -168,11 +184,18 @@ which is why `curl /api` printed `ENVIRONMENT: production` and `LOG_LEVEL: INFO`
 Individual keys can also be selected with `valueFrom.configMapKeyRef`, or the map can be
 mounted as a volume, where each key becomes a file.
 
+One detail to keep straight: `manifests/01-configmap/` above and
+`manifests/04-full-demo/configmap.yaml` both create a map called `yatri-app-config`, and
+they differ in one key, `PORT` against `APP_PORT`. The running stack in this task is the
+full demo one, so that is the name that appears in the pod's environment further down.
+
 ### The gotcha: updating a ConfigMap does not update running pods
 
     $ kubectl patch configmap yatri-app-config --type=merge -p '{"data":{"LOG_LEVEL":"DEBUG"}}'
     $ kubectl get configmap yatri-app-config -o jsonpath='{.data.LOG_LEVEL}'
     DEBUG
+
+![the deployed ConfigMap after the update](screenshots/01-configmap.png)
 
     $ curl -s -H "Host: yatri.local" http://localhost/api | grep LOG_LEVEL
     LOG_LEVEL       : INFO
@@ -186,6 +209,31 @@ cannot reach into a running process.
 
     $ curl -s -H "Host: yatri.local" http://localhost/api | grep LOG_LEVEL
     LOG_LEVEL       : DEBUG
+
+![both paths routing, and the new value after the restart](screenshots/06-ingress-routing.png)
+
+The values can be confirmed from inside the container too, which is where they actually
+matter. `env` in the running pod shows the ConfigMap keys and the Secret keys side by
+side, the backend having pulled both in with `envFrom`:
+
+    $ kubectl exec deploy/yatri-backend -- env | grep -E 'ENVIRONMENT|LOG_LEVEL|APP_PORT|CURRENCY|MAX_BOOKING|POSTGRES' | sort
+    APP_PORT=5000
+    DEFAULT_CURRENCY=INR
+    ENVIRONMENT=production
+    LOG_LEVEL=DEBUG
+    MAX_BOOKING_DAYS=30
+    POSTGRES_DB=yatri_production_db
+    POSTGRES_PASSWORD=secretpassword
+    POSTGRES_USER=yatri_admin
+
+![ConfigMap and Secret values inside the running pod](screenshots/02-configmap-in-pod.png)
+
+`LOG_LEVEL=DEBUG` confirms the restart took effect. Worth noticing what else this shows:
+`POSTGRES_PASSWORD` is sitting in the process environment in plain text. The Secret
+protected it in `etcd` and in `describe` output, and then handed it over unprotected to
+anything that can read the container's environment, which includes a crash dump or a
+logging library that prints `os.environ`. Mounting a Secret as a file is the better habit
+for that reason.
 
 Only after a restart. This is a standard source of confusion, and the two ways around it
 are to mount the ConfigMap as a volume instead, where the kubelet does refresh the files
@@ -212,6 +260,8 @@ keeps them in memory rather than writing them to disk on the node.
     POSTGRES_USER:      11 bytes
 
 Key names and sizes, no values.
+
+![the Secret, and its password decoded](screenshots/03-secret.png)
 
 ### Base64 is encoding, not encryption
 
@@ -257,6 +307,8 @@ correct one here ends `==`.
 `kubectl create secret generic --from-literal=` avoids the whole problem by doing the
 encoding itself.
 
+![the trailing newline visible in the encoded value](screenshots/04-secret-newline-trap.png)
+
 ## 5. TLS Ingress
 
 `manifests/03-ingress/ingress-tls.yaml` terminates HTTPS for two hosts, with the
@@ -289,7 +341,7 @@ certificate supplied by a Secret of type `kubernetes.io/tls`.
     Yatri Backend API
     =================
     ENVIRONMENT     : production
-    LOG_LEVEL       : INFO
+    LOG_LEVEL       : DEBUG
     DEFAULT_CURRENCY: INR
     POSTGRES_USER   : yatri_admin
     POSTGRES_DB     : yatri_production_db
@@ -318,6 +370,8 @@ SNI, which is how one IP and port serve different certificates per hostname.
 annotation on this Ingress. The other Ingress sets it to `"false"`, which is why plain
 HTTP worked for `yatri.local` earlier. 308 rather than 301 because it guarantees the
 method and body are preserved, so a redirected POST stays a POST.
+
+![HTTPS on both hosts, the served certificate, and the 308 redirect](screenshots/07-tls-https.png)
 
 ## Summary
 
