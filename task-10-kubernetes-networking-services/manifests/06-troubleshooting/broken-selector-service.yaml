@@ -1,0 +1,17 @@
+# A Service whose selector matches no pod, used to practise endpoint triage.
+# The pods from 01-clusterip carry the label app: web-clusterip, so the typo
+# below leaves the Service with an empty address list and every request to it
+# fails, even though the Service itself looks perfectly healthy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: broken-web-service
+spec:
+  type: ClusterIP
+  selector:
+    app: web-clusterp        # typo: the pods are labelled web-clusterip
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
