@@ -109,6 +109,8 @@ isolation happens before any connection is attempted.
     backend-net   database (172.20.0.3/16)  backend (172.20.0.2/16)
     database-net  database (172.21.0.2/16)
 
+![Three containers on three networks](screenshots/container-networking.png)
+
 ### What I took from this
 
 The default bridge network puts every container in one flat space where all of them can
@@ -339,6 +341,8 @@ With one machine available, both containers necessarily landed on the same host,
 does not prove cross host traffic. What it does show is that the commands and the name
 based connection are identical to what they would be if `ov2` were on another server, and
 that identity is the whole point of the driver.
+
+![Overlay network on a single node swarm](screenshots/overlay-network.png)
 
 Afterwards I put the machine back as it was:
 
