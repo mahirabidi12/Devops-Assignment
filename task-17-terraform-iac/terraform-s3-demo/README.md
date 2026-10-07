@@ -3,18 +3,14 @@
 Session 18, Task 1. An S3 bucket created with Terraform, with the full command workflow
 documented.
 
-## Important: this was planned, not applied
+## All eight commands were run for real
 
-`init`, `fmt`, `validate` and `plan` were all run for real against a live AWS account.
-**`apply` was deliberately not run.**
+`init`, `fmt`, `validate`, `plan`, `apply`, `show`, `output` and `destroy` were all
+executed against a live AWS account in `ap-south-1`. The bucket
+`scaler-devops-demo-49ac66c3` existed, and was destroyed immediately afterwards.
 
-`plan` makes read-only API calls and costs nothing. `apply` creates real resources and
-starts billing, and that is a decision for the account owner rather than something to do
-unattended. The `apply` and `destroy` sections below give the exact commands and what to
-expect; run them when you are ready to spend, and run `destroy` straight afterwards.
-
-An S3 bucket with nothing in it costs essentially nothing, so this is a cheap one to
-actually apply — unlike the EC2 and NAT gateway resources in session 19.
+An empty S3 bucket costs essentially nothing, which is why this was a safe one to apply —
+unlike the EC2 resources in session 19.
 
 ## File layout
 
@@ -116,15 +112,43 @@ Otherwise `apply` re-plans, and what it does may differ from what you reviewed.
 
 ### terraform apply
 
-**Not run here.** Creates the resources.
+![apply](../screenshots/18-03-apply.png)
 
-    $ terraform apply
-    ...
-    Plan: 8 to add, 0 to change, 0 to destroy.
-    Do you want to perform these actions?
-      Enter a value: yes
+    $ terraform apply tfplan
+    random_id.suffix: Creation complete after 0s [id=Saxmww]
+    aws_s3_bucket.demo: Still creating... [00m10s elapsed]
+    aws_s3_bucket.demo: Creation complete after 14s [id=scaler-devops-demo-49ac66c3]
+    aws_s3_bucket_public_access_block.demo: Creation complete after 1s
+    aws_s3_bucket_server_side_encryption_configuration.demo: Creation complete after 1s
+    aws_s3_bucket_ownership_controls.demo: Creation complete after 1s
+    aws_s3_bucket_policy.demo: Creation complete after 0s
+    aws_s3_bucket_versioning.demo: Creation complete after 2s
+    aws_s3_bucket_lifecycle_configuration.demo: Still creating... [00m50s elapsed]
+    aws_s3_bucket_lifecycle_configuration.demo: Creation complete after 57s
 
     Apply complete! Resources: 8 added, 0 changed, 0 destroyed.
+
+    Outputs:
+
+    bucket_arn        = "arn:aws:s3:::scaler-devops-demo-49ac66c3"
+    bucket_name       = "scaler-devops-demo-49ac66c3"
+    bucket_region     = "ap-south-1"
+    versioning_status = "Enabled"
+
+Three things in that output are worth reading rather than skipping.
+
+**The dependency graph is visible in the ordering.** `random_id` finished first because the
+bucket name interpolates it. Then the bucket. Then the five settings resources started
+**in parallel**, because each depends only on the bucket and not on each other. Nothing in
+the configuration states that order.
+
+**The lifecycle configuration took 57 seconds** while everything else took one or two. S3
+lifecycle rules are eventually consistent, and the provider polls until the rule is
+readable. This is normal and worth knowing before assuming an apply has hung.
+
+**The bucket name carries the random suffix**, `49ac66c3`, derived from `random_id.suffix`.
+Re-running from scratch would produce a different bucket, which is the point — a fixed name
+would collide with the global S3 namespace.
 
 Terraform works out the order from the references: `random_id` before the bucket, because
 the name interpolates it; the bucket before everything that takes `bucket = aws_s3_bucket.demo.id`.
@@ -137,33 +161,93 @@ access is blocked.
 
 ### terraform show
 
-Prints the current state in human-readable form.
+Prints the current state in human-readable form, including every attribute AWS filled in.
 
-    terraform show
+![show and output](../screenshots/18-04-show-output.png)
 
-Useful after apply to see the attributes AWS filled in — the resolved bucket name, the ARN,
-the region.
+    $ terraform show | head -20
+    # aws_s3_bucket.demo:
+    resource "aws_s3_bucket" "demo" {
+        arn                         = "arn:aws:s3:::scaler-devops-demo-49ac66c3"
+        bucket                      = "scaler-devops-demo-49ac66c3"
+        bucket_domain_name          = "scaler-devops-demo-49ac66c3.s3.amazonaws.com"
+        bucket_regional_domain_name = "scaler-devops-demo-49ac66c3.s3.ap-south-1.amazonaws.com"
+        hosted_zone_id              = "Z11RGJOFQNVJUP"
+        region                      = "ap-south-1"
+        request_payer               = "BucketOwner"
+        tags_all                    = {
+            "Environment" = "dev"
+            "ManagedBy"   = "terraform"
+            "Project"     = "scaler-devops-homework"
+            "Session"     = "18-terraform-iac"
+        }
+    }
+
+Note `tags_all` rather than `tags`. The four tags came from `default_tags` on the provider,
+not from the resource, so they appear in the computed `tags_all` while `tags` itself is
+empty. That distinction causes real confusion when a plan shows a tag change nobody made.
+
+One oddity in the full output worth recording: the deprecated inline `versioning` block on
+`aws_s3_bucket` reported `enabled = false` immediately after apply, while the separate
+`aws_s3_bucket_versioning` resource correctly reported `status = "Enabled"`. The inline
+block is legacy and is not refreshed by the newer resource; the destroy plan a moment later
+showed it as `enabled = true`. Trust the dedicated resource, not the deprecated field.
 
 ### terraform output
 
 Prints just the declared outputs.
 
     $ terraform output
-    bucket_arn        = "arn:aws:s3:::scaler-devops-demo-a1b2c3d4"
-    bucket_name       = "scaler-devops-demo-a1b2c3d4"
+    bucket_arn        = "arn:aws:s3:::scaler-devops-demo-49ac66c3"
+    bucket_name       = "scaler-devops-demo-49ac66c3"
     bucket_region     = "ap-south-1"
     versioning_status = "Enabled"
 
     $ terraform output -raw bucket_name
-    scaler-devops-demo-a1b2c3d4
+    scaler-devops-demo-49ac66c3
 
 `-raw` gives an unquoted value, which is what you pipe into other commands in a script.
 
 ### terraform destroy
 
-**Run this when finished.** Removes everything in state.
+Removes everything in state. Run immediately after the demonstration.
 
-    terraform destroy
+![destroy](../screenshots/18-05-destroy.png)
+
+    $ terraform destroy
+    random_id.suffix: Refreshing state... [id=Saxmww]
+    aws_s3_bucket.demo: Refreshing state... [id=scaler-devops-demo-49ac66c3]
+    ...
+
+      # aws_s3_bucket.demo will be destroyed
+      # aws_s3_bucket_lifecycle_configuration.demo will be destroyed
+      # aws_s3_bucket_ownership_controls.demo will be destroyed
+      # aws_s3_bucket_policy.demo will be destroyed
+      # aws_s3_bucket_public_access_block.demo will be destroyed
+      # aws_s3_bucket_server_side_encryption_configuration.demo will be destroyed
+      # aws_s3_bucket_versioning.demo will be destroyed
+      # random_id.suffix will be destroyed
+
+    Plan: 0 to add, 0 to change, 8 to destroy.
+
+    Changes to Outputs:
+      - bucket_arn        = "arn:aws:s3:::scaler-devops-demo-49ac66c3" -> null
+      - bucket_name       = "scaler-devops-demo-49ac66c3" -> null
+      - bucket_region     = "ap-south-1" -> null
+      - versioning_status = "Enabled" -> null
+
+    Do you really want to destroy all resources?
+      Only 'yes' will be accepted to confirm.
+
+      Enter a value: yes
+
+`destroy` refreshes state first — it checks what still exists before deciding what to
+remove, so a resource deleted by hand in the console does not cause a failure. It then
+walks the dependency graph **backwards**: the settings resources go before the bucket they
+attach to.
+
+The interactive confirmation has no `-auto-approve` here on purpose. In CI you would pass
+it; at a terminal, typing `yes` is the last chance to read the plan.
 
 A bucket must be empty to be deleted. If objects were uploaded, `destroy` fails with
 `BucketNotEmpty` and they must be removed first:

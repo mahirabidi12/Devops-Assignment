@@ -12,18 +12,17 @@ write-ups on five AWS services.
 | [`aws-services/04-vpc/`](aws-services/04-vpc/README.md) | Task 2.4 | CIDR, subnets, route tables, gateways, security groups, NACLs |
 | [`aws-services/05-dynamodb-rds/`](aws-services/05-dynamodb-rds/README.md) | Task 2.5 | DynamoDB and RDS, and choosing between them |
 
-## Important: planned, not applied
+## All eight commands were run against live AWS
 
-`terraform init`, `fmt`, `validate` and `plan` were all run for real against a live AWS
-account. **`apply` was not run.**
+`init`, `fmt`, `validate`, `plan`, `apply`, `show`, `output` and `destroy` all executed in
+`ap-south-1`. The bucket `scaler-devops-demo-49ac66c3` was created, inspected, and
+destroyed in the same sitting.
 
-`plan` is read-only and free. `apply` creates billable resources, which is the account
-owner's decision rather than something to do unattended. The exact commands and expected
-output for `apply`, `show`, `output` and `destroy` are documented in
+    Apply complete!   Resources: 8 added, 0 changed, 0 destroyed.
+    Plan:             0 to add, 0 to change, 8 to destroy.
+
+Full transcripts and what each step shows are in
 [`terraform-s3-demo/README.md`](terraform-s3-demo/README.md).
-
-An empty S3 bucket costs essentially nothing, so this is a cheap one to actually apply —
-unlike the EC2 instance in [session 19](../task-18-cloud-terraform/README.md).
 
 ## What the Terraform creates
 
@@ -55,8 +54,11 @@ lists plus the failure modes that actually bite:
 |---|---|
 | `screenshots/18-01-init-validate.png` | `init`, `fmt -check`, `validate` |
 | `screenshots/18-02-plan.png` | the 8 planned resources and the plan summary |
+| `screenshots/18-03-apply.png` | the apply, with parallel creation and the 57s lifecycle rule |
+| `screenshots/18-04-show-output.png` | `output`, `output -raw` and `show` |
+| `screenshots/18-05-destroy.png` | the destroy plan and the confirmation |
 
 ## Cleanup
 
-Nothing was created, so there is nothing to clean up. If you do run `apply`, run
-`terraform destroy` immediately afterwards.
+Already done — `terraform destroy` removed all 8 resources straight after the
+demonstration, so nothing is left billing.
