@@ -1,0 +1,46 @@
+# The Application object is the whole of GitOps in one manifest: it names a git
+# repository and a cluster destination, and ArgoCD makes the second match the
+# first, continuously.
+#
+# Nothing here says "deploy". There is no imperative step at all - the desired
+# state is the repository, and ArgoCD reconciles towards it.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitops-demo
+  namespace: argocd
+  finalizers:
+    # Ensures deleting the Application also removes what it deployed, rather
+    # than orphaning the resources.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/mahirabidi12/Devops-Assignment.git
+    targetRevision: main
+    path: task-19-monitoring-observability-gitops/03-gitops/app
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitops-demo
+
+  syncPolicy:
+    automated:
+      # Delete resources that are no longer in git. Without this, removing a
+      # manifest from the repository leaves it running in the cluster forever.
+      prune: true
+      # Revert manual changes made with kubectl. This is what makes git the
+      # source of truth rather than merely its starting point.
+      selfHeal: true
+
+    syncOptions:
+      - CreateNamespace=true
+
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
