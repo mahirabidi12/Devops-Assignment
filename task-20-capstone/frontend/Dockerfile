@@ -38,5 +38,9 @@ ENV BACKEND_HOST=backend \
 
 EXPOSE 8080
 
+# 127.0.0.1 rather than localhost, deliberately. Inside the container localhost
+# resolves to ::1 first, and nginx here listens on IPv4 only, so wget fails with
+# "connection refused" while the service is perfectly healthy from outside.
+# curl silently falls back to IPv4; busybox wget does not.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -qO- http://localhost:8080/healthz || exit 1
+    CMD wget -qO- http://127.0.0.1:8080/healthz || exit 1
