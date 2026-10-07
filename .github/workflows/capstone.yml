@@ -153,11 +153,17 @@ jobs:
           scanners: vuln
           severity: HIGH,CRITICAL
           ignore-unfixed: true
-          # Documented exceptions with written justification and expiry dates.
+          # Documented exceptions, each with a written justification.
           trivyignores: task-20-capstone/.trivyignore
           exit-code: '1'
           format: sarif
           output: trivy-${{ matrix.component }}.sarif
+          # Without this the action drops the --severity filter when the format
+          # is sarif, so the SARIF carries every severity AND the exit code is
+          # computed over all of them. The gate then fails on MEDIUM and LOW
+          # findings it was never meant to block - which is exactly what
+          # happened here: 0 fixable HIGH/CRITICAL but 7 MEDIUM and 2 LOW.
+          limit-severities-for-sarif: true
 
       - name: Upload to the Security tab
         if: always()
