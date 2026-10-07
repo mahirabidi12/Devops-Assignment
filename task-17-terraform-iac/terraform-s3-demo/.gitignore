@@ -1,0 +1,10 @@
+# Terraform state contains resource IDs and can contain secrets in plain text.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# Real variable values, which may include account-specific names.
+terraform.tfvars
+*.auto.tfvars

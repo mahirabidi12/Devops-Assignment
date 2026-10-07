@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored so that
+# real values never reach the repository.
+
+aws_region                         = "ap-south-1"
+bucket_name_prefix                 = "scaler-devops-demo"
+environment                        = "dev"
+enable_versioning                  = true
+noncurrent_version_expiration_days = 30

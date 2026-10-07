@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+
+aws_region          = "ap-south-1"
+project_name        = "scaler-devops"
+vpc_cidr            = "10.0.0.0/16"
+public_subnet_cidr  = "10.0.1.0/24"
+private_subnet_cidr = "10.0.2.0/24"
+instance_type       = "t3.micro"
+
+# Set this to your own address, e.g. "203.0.113.42/32".
+# Never 0.0.0.0/0.
+allowed_ssh_cidr = "10.0.0.0/16"
