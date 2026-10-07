@@ -1,0 +1,16 @@
+# Production overrides. Applied with:  helm install notes ./notes-chart -f values-prod.yaml
+
+replicaCount: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+config:
+  environment: production
+  title: "Notes — production"
+  banner: "#1b4332"

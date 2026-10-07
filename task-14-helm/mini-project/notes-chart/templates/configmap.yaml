@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "notes-chart.fullname" . }}
+  labels:
+    {{- include "notes-chart.labels" . | nindent 4 }}
+data:
+  index.html: |
+    <html>
+      <body style="background:{{ .Values.config.banner }};color:#fff;font-family:monospace;text-align:center;padding-top:18vh">
+        <h1>{{ .Values.config.title }}</h1>
+        <p>environment: {{ .Values.config.environment }}</p>
+        <p>release: {{ .Release.Name }} &middot; revision: {{ .Release.Revision }}</p>
+        <p>replicas: {{ .Values.replicaCount }}</p>
+      </body>
+    </html>

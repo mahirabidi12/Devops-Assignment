@@ -1,0 +1,27 @@
+# Default values. Overridden per environment with -f or --set.
+
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "1.27-alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# Rendered into a ConfigMap and mounted as the served page, so that a value
+# change is visible in the browser rather than only in the manifest.
+config:
+  environment: development
+  title: "Notes — development"
+  banner: "#3a506b"

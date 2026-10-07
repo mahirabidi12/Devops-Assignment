@@ -1,0 +1,6 @@
+apiVersion: v2
+name: notes-chart
+description: A small notes application packaged as a Helm chart, for the session 15 mini project.
+type: application
+version: 0.1.0
+appVersion: "1.27"
