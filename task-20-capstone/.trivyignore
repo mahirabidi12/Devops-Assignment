@@ -5,6 +5,9 @@
 # .trivyignore with bare CVE ids and no justification is indistinguishable from
 # someone hiding a real problem.
 #
+# Review date for both entries: 2026-12-31. The expiry is kept in this comment
+# rather than as an `exp:` suffix, which older Trivy versions do not parse.
+#
 # Both entries below need starlette 1.x. FastAPI 0.142.2 requires
 # starlette <1.0, so adopting the fix means waiting for FastAPI to support it.
 # Neither affects this application.
@@ -12,9 +15,9 @@
 # SSRF and NTLM credential theft via UNC paths in StaticFiles, on Windows.
 # This application does not use StaticFiles - the frontend is served by nginx
 # in a separate container - and runs only in Linux containers.
-CVE-2026-48818 exp:2026-12-31
+CVE-2026-48818
 
 # request.form() size limits silently ignored for x-www-form-urlencoded bodies.
 # Every endpoint here accepts JSON only; there is no form parsing anywhere in
 # the application. Request size is bounded at the ingress regardless.
-CVE-2026-54283 exp:2026-12-31
+CVE-2026-54283

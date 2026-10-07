@@ -132,6 +132,28 @@ The frontend's `node_modules` never reaches the runtime image — only the built
 `condition: service_completed_successfully`. The schema always exists before the
 first request.
 
+![compose stack](screenshots/21-10-compose.png)
+
+    NAME                 STATUS
+    taskboard-backend    Up 54 seconds (healthy)
+    taskboard-db         Up 3 minutes (healthy)
+    taskboard-frontend   Up 54 seconds (healthy)
+
+    frontend      HTTP 200
+    api via nginx HTTP 200
+
+**A healthcheck bug worth recording.** Both containers originally probed
+`http://localhost:<port>`. The frontend reported `unhealthy` while serving 200s
+perfectly well from outside, and the backend looked fine.
+
+Inside the container `localhost` resolves to `::1` first, and both nginx and
+uvicorn listen on IPv4 only. `curl` silently falls back to IPv4, so the
+backend's healthcheck passed; busybox `wget` does not, so the frontend's failed.
+The same latent bug, visible in one container and hidden in the other purely
+because of which HTTP client the image happened to have.
+
+Both now use `127.0.0.1` explicitly.
+
 **Two networks.** The frontend is only on `frontend-net`, so it has no route to
 the database at all:
 
