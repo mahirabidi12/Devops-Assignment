@@ -334,6 +334,19 @@ desired state, and a controller watches the live state and works to close the di
 Deleting a pod does not fight Kubernetes, it just gives the relevant controller something
 to reconcile.
 
+## Further sections for this task
+
+The session's homework has three further parts, each in its own folder:
+
+| Folder | Covers |
+|---|---|
+| [`strategies/`](strategies/README.md) | all four deployment strategies — rolling update, blue-green, canary and recreate |
+| [`pod-lifecycle/`](pod-lifecycle/README.md) | the twelve pod states, each applied and captured |
+| [`comparison/`](comparison/README.md) | Deployment vs ReplicaSet, Deployment vs DaemonSet vs StatefulSet, ReplicaSet vs Service |
+
+The rolling update and rollback above are the first of the four strategies; the other
+three are demonstrated in `strategies/`.
+
 ## Cleanup
 
     kubectl delete -f manifests/
