@@ -20,8 +20,42 @@ this folder, so editing any other task does not trigger them:
 Each job sets `defaults.run.working-directory` to this folder, since the project is a
 subdirectory rather than the repository root.
 
-**Screenshot of the Actions run:** add it to `screenshots/` after the first push. Every job
-was verified locally first, using the exact commands the workflow runs — see below.
+## The pipeline running
+
+Both workflows passed on their first real run, commit `58ae09f`.
+
+![CI run](screenshots/16-03-ci-run.png)
+
+    CI · Triggered by push on main · commit 58ae09f
+    Status: completed    Conclusion: SUCCESS
+    Duration: 1m18s
+
+      [v] Lint                           success   0m08s
+      [v] Test on Python 3.11            success   0m09s
+      [v] Test on Python 3.13            success   0m13s
+      [v] Test on Python 3.12            success   0m12s
+      [v] Build image                    success   0m46s
+
+      5 succeeded, 0 skipped, 0 failed
+
+The three matrix jobs confirm the `pythonpath` fix below was correct — without it every
+one of them would have failed collection.
+
+![CD run](screenshots/16-04-cd-run.png)
+
+    CD · Triggered by workflow_run on main · commit 58ae09f
+    Status: completed    Conclusion: SUCCESS
+    Duration: 0m39s
+
+      [v] Publish image                  success   0m35s
+      [-] Deploy to staging              skipped
+
+CD ran only because CI succeeded — that is the `workflow_run` trigger with its
+`conclusion == 'success'` guard. The image was built and pushed to GHCR.
+
+`Deploy` is **skipped, not failed**. It sits behind `if: vars.DEPLOY_ENABLED == 'true'`
+because it needs a cluster and a `KUBECONFIG` secret. Without that guard the job would fail
+on every run and turn the pipeline red for no useful reason.
 
 ## A real bug caught before pushing
 
