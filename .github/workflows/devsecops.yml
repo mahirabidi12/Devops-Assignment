@@ -166,7 +166,7 @@ jobs:
       # published. ignore-unfixed avoids blocking on CVEs with no available fix,
       # which would otherwise make the gate permanently red and get disabled.
       - name: Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: api:${{ github.sha }}
           severity: HIGH,CRITICAL
@@ -194,6 +194,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # GHCR requires lowercase image names, and a repository name may contain
+      # capitals. docker/metadata-action lowercases automatically; this job
+      # builds its tag by hand, so do it explicitly.
+      - name: Lowercase the image name
+        id: img
+        run: echo "name=${IMAGE_NAME,,}" >> "$GITHUB_OUTPUT"
+        working-directory: .
+
       # Required for provenance and SBOM attestations below; the default docker
       # driver cannot produce them.
       - uses: docker/setup-buildx-action@v3
@@ -209,7 +217,7 @@ jobs:
           context: task-16-devsecops
           file: task-16-devsecops/Dockerfile.alpine
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          tags: ${{ env.REGISTRY }}/${{ steps.img.outputs.name }}:${{ github.sha }}
           provenance: true          # supply-chain attestation
           sbom: true                # software bill of materials
 
