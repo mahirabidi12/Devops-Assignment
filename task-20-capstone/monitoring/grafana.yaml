@@ -1,0 +1,144 @@
+# Grafana, with the Prometheus datasource and a TaskBoard dashboard both
+# provisioned from files - so the stack comes up ready to look at rather than
+# needing anything clicked.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: monitoring
+data:
+  prometheus.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: taskboard
+        folder: TaskBoard
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-taskboard
+  namespace: monitoring
+data:
+  taskboard.json: |
+    {
+      "title": "TaskBoard",
+      "uid": "taskboard",
+      "tags": ["taskboard", "capstone"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "10s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "type": "stat", "title": "Backend targets up",
+          "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+          "targets": [{ "expr": "sum(up{component=\"backend\"})", "refId": "A" }]
+        },
+        {
+          "type": "stat", "title": "Requests / sec",
+          "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+          "targets": [{ "expr": "sum(rate(http_requests_total{component=\"backend\"}[5m]))", "refId": "A" }]
+        },
+        {
+          "type": "stat", "title": "p95 latency (s)",
+          "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+          "targets": [{
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{component=\"backend\"}[5m])) by (le))",
+            "refId": "A"
+          }]
+        },
+        {
+          "type": "stat", "title": "Error rate",
+          "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+          "targets": [{
+            "expr": "sum(rate(http_requests_total{component=\"backend\",status=~\"5xx\"}[5m])) / clamp_min(sum(rate(http_requests_total{component=\"backend\"}[5m])), 0.001)",
+            "refId": "A"
+          }]
+        },
+        {
+          "type": "timeseries", "title": "Request rate by handler",
+          "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+          "targets": [{
+            "expr": "sum by (handler) (rate(http_requests_total{component=\"backend\"}[5m]))",
+            "legendFormat": "{{handler}}", "refId": "A"
+          }]
+        },
+        {
+          "type": "timeseries", "title": "Request duration p50 / p95 / p99",
+          "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{component=\"backend\"}[5m])) by (le))", "legendFormat": "p50", "refId": "A" },
+            { "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{component=\"backend\"}[5m])) by (le))", "legendFormat": "p95", "refId": "B" },
+            { "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{component=\"backend\"}[5m])) by (le))", "legendFormat": "p99", "refId": "C" }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.4.0
+          ports:
+            - name: web
+              containerPort: 3000
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: admin
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          volumeMounts:
+            - { name: datasources, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: dashboard-provider, mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboards, mountPath: /var/lib/grafana/dashboards }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits:   { cpu: 500m, memory: 512Mi }
+      volumes:
+        - { name: datasources,        configMap: { name: grafana-datasources } }
+        - { name: dashboard-provider, configMap: { name: grafana-dashboard-provider } }
+        - { name: dashboards,         configMap: { name: grafana-dashboard-taskboard } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector: { app: grafana }
+  ports:
+    - name: web
+      port: 3000
+      targetPort: web

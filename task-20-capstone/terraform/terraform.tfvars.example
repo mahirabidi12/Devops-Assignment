@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is gitignored.
+
+aws_region         = "ap-south-1"
+cluster_name       = "taskboard-eks"
+owner              = "your-name"
+node_instance_type = "t3.medium"
+node_desired_size  = 2
+single_nat_gateway = true

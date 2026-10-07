@@ -1,0 +1,28 @@
+TaskBoard {{ .Chart.AppVersion }} deployed as release {{ .Release.Name }}.
+
+Check it came up:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.ingress.enabled }}
+
+Reach it through the Ingress:
+
+  curl -H "Host: {{ .Values.ingress.host }}" http://localhost/
+  curl -H "Host: {{ .Values.ingress.host }}" http://localhost/api/stats
+
+Add it to /etc/hosts to use a browser:
+
+  127.0.0.1  {{ .Values.ingress.host }}
+{{- else }}
+
+No Ingress. Port-forward instead:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "taskboard.fullname" . }}-frontend 8080:80
+{{- end }}
+
+Metrics:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "taskboard.fullname" . }}-backend {{ .Values.backend.port }}:{{ .Values.backend.port }}
+  curl localhost:{{ .Values.backend.port }}/metrics

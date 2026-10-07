@@ -1,0 +1,75 @@
+# The whole stack on one machine: database, API, frontend.
+#
+#   docker compose up --build
+#   open http://localhost:8080
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: taskboard-db
+    environment:
+      POSTGRES_USER: taskboard
+      POSTGRES_PASSWORD: taskboard
+      POSTGRES_DB: taskboard
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # The backend waits on this, not merely on the container existing.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskboard -d taskboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend-net]
+
+  # Runs the Alembic migration, then exits. The API waits for it to complete
+  # successfully, so the schema always exists before the first request.
+  migrate:
+    build:
+      context: ./backend
+    container_name: taskboard-migrate
+    environment:
+      DATABASE_URL: postgresql+psycopg2://taskboard:taskboard@db:5432/taskboard
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [backend-net]
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: taskboard-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg2://taskboard:taskboard@db:5432/taskboard
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8000:8000"
+    networks: [backend-net, frontend-net]
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: taskboard-frontend
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: 8000
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+    # Only on frontend-net, so it has no route to the database at all.
+    networks: [frontend-net]
+
+networks:
+  frontend-net:
+  backend-net:
+
+volumes:
+  db-data:

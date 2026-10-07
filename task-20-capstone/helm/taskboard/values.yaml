@@ -1,0 +1,57 @@
+# Defaults. Overridden per environment with -f values-prod.yaml or --set.
+
+image:
+  registry: ghcr.io
+  repository: mahirabidi12/devops-assignment
+  backendTag: latest
+  frontendTag: latest
+  pullPolicy: IfNotPresent
+
+backend:
+  replicaCount: 2
+  port: 8000
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+frontend:
+  replicaCount: 2
+  port: 8080
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 200m, memory: 128Mi }
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  database: taskboard
+  user: taskboard
+  # Development default only. In production this comes from an external secret
+  # manager, never from values.yaml.
+  password: taskboard
+  storage: 2Gi
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+config:
+  environment: production
+  logLevel: INFO
+
+ingress:
+  enabled: true
+  className: nginx
+  host: taskboard.local
+  tls:
+    enabled: false
+    secretName: taskboard-tls
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+serviceMonitor:
+  # Set true when the Prometheus Operator is installed.
+  enabled: false

@@ -1,0 +1,200 @@
+# Capstone CI/CD: test, build, scan, publish.
+#
+# Scoped with paths: to task-20-capstone so other tasks do not trigger it.
+#
+#   test ──▶ build-backend ─┐
+#        └─▶ build-frontend ─┴─▶ scan ──▶ publish
+#
+# Three things here are the result of earlier pipelines in this repository
+# failing on a real runner rather than guesswork:
+#   - pytest needs pythonpath (bare `pytest` does not add the CWD to sys.path)
+#   - the Trivy action tag is v-prefixed; without the v it fails at "Set up job"
+#   - GHCR rejects uppercase image names, and this repository name has capitals
+
+name: Capstone
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'task-20-capstone/**'
+      - '.github/workflows/capstone.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'task-20-capstone/**'
+      - '.github/workflows/capstone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  PROJECT: task-20-capstone
+
+jobs:
+  # ------------------------------------------------------------- test ----
+  test:
+    name: Test and lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: task-20-capstone/backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: task-20-capstone/backend/requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      - name: flake8
+        run: flake8 app/ tests/ --max-line-length=100
+
+      - name: pytest
+        run: pytest --cov=app --cov-report=term-missing --cov-report=xml
+
+      - name: Bandit (SAST)
+        run: bandit -r app/ -ll
+
+      - name: pip-audit (SCA)
+        run: pip-audit -r requirements.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: task-20-capstone/backend/coverage.xml
+          retention-days: 7
+
+  # ------------------------------------------------------------ build ----
+  build:
+    name: Build ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: task-20-capstone/${{ matrix.component }}
+          push: false
+          load: true
+          tags: taskboard-${{ matrix.component }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+      - name: Save image
+        run: docker save taskboard-${{ matrix.component }}:${{ github.sha }} -o image.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.component }}
+          path: image.tar
+          retention-days: 1
+
+  # ------------------------------------------------------------- scan ----
+  scan:
+    name: Trivy scan ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image-${{ matrix.component }}
+
+      - run: docker load -i image.tar
+
+      # Always reports, never fails, so the log shows what was found.
+      - name: Trivy report
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: taskboard-${{ matrix.component }}:${{ github.sha }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: '0'
+
+      # THE GATE. A vulnerable image cannot be published.
+      # ignore-unfixed avoids blocking on CVEs with no patch available, which
+      # would make the gate permanently red and get it switched off.
+      - name: Trivy gate
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: taskboard-${{ matrix.component }}:${{ github.sha }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          # Documented exceptions with written justification and expiry dates.
+          trivyignores: task-20-capstone/.trivyignore
+          exit-code: '1'
+          format: sarif
+          output: trivy-${{ matrix.component }}.sarif
+
+      - name: Upload to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.component }}.sarif
+          category: trivy-${{ matrix.component }}
+
+  # ---------------------------------------------------------- publish ----
+  publish:
+    name: Publish ${{ matrix.component }}
+    runs-on: ubuntu-latest
+    needs: scan
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        component: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # metadata-action lowercases the repository name automatically, which
+      # matters because GHCR rejects uppercase and this repo has capitals.
+      - name: Tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}-taskboard-${{ matrix.component }}
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: task-20-capstone/${{ matrix.component }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          provenance: true
+          sbom: true
