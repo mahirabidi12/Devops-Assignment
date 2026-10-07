@@ -30,6 +30,11 @@ postgres:
   # manager, never from values.yaml.
   password: taskboard
   storage: 2Gi
+  # Empty means "use the cluster's default StorageClass". kind has one named
+  # standard and marks it default; EKS ships gp2 but does NOT mark it default,
+  # so a claim with no class set binds to nothing there. Set it explicitly per
+  # environment rather than assuming a default exists.
+  storageClass: ""
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { cpu: 500m, memory: 512Mi }

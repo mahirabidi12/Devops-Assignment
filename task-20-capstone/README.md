@@ -178,8 +178,50 @@ the database at all:
 GHCR tagged with the commit SHA — never `latest` alone, so a deployed image is
 always traceable to the commit that produced it.
 
-Three details in that workflow come from earlier pipelines in this repository
-failing on a real runner, not from guesswork:
+![Capstone pipeline](screenshots/21-11-pipeline.png)
+
+    Capstone · Triggered by push on main · commit 21aa9ad
+    Status: completed    Conclusion: SUCCESS
+    Duration: 2m42s
+
+      [v] Test and lint          success  0m28s
+      [v] Build backend          success  0m44s
+      [v] Build frontend         success  0m31s
+      [v] Trivy scan frontend    success  0m37s
+      [v] Trivy scan backend     success  0m41s
+      [v] Publish frontend       success  0m34s
+      [v] Publish backend        success  0m31s
+
+      7 succeeded, 0 skipped, 0 failed
+
+Both images are published to GHCR, SHA-tagged, with provenance and SBOM
+attestations.
+
+### Four bugs this pipeline found by being run
+
+None of them was visible to YAML validation or to running the steps locally.
+
+**1. `pythonpath` in pytest.ini.** Bare `pytest` — what CI runs — failed
+collection while `python -m pytest` passed, because only the latter adds the
+working directory to `sys.path`.
+
+**2. The Trivy action tag is `v`-prefixed.** `@0.28.0` cannot be resolved and
+the job fails at "Set up job", before any step executes.
+
+**3. The scan job had no `actions/checkout`.** It referenced `.trivyignore`,
+which therefore did not exist in the workspace. The action errored, no SARIF was
+written, and the upload step failed too — two failures from one missing line.
+
+**4. `limit-severities-for-sarif`.** This one took three runs to find. With
+`format: sarif` the action **drops the `--severity` filter**, so the report
+carries every severity *and the exit code is computed over all of them*. The
+backend gate kept failing on 7 MEDIUM and 2 LOW findings while having **zero**
+fixable HIGH/CRITICAL — the only severity the gate is configured for. The
+frontend passed throughout because its Alpine 3.24 base is clean at every
+severity, which masked the bug on half the matrix.
+
+Three further details in that workflow come from earlier pipelines in this
+repository failing the same way:
 
 - **`pythonpath` in pytest.ini.** Bare `pytest` failed collection while
   `python -m pytest` passed.
@@ -243,35 +285,91 @@ assuming a single exclusion file covers a pipeline.
 
 `terraform/` provisions a VPC across two availability zones (public and private
 subnets, NAT gateway) and an **EKS cluster** with a managed node group.
+**54 resources, applied for real and destroyed afterwards.**
 
-    terraform init && terraform validate   ✅ Success! The configuration is valid.
+![terraform apply](screenshots/21-12-tf-apply.png)
 
-**`apply` has not been run.** This is not free-tier:
+    Apply complete! Resources: 54 added, 0 changed, 0 destroyed.
+
+    cluster_endpoint = "https://986577C4...gr7.ap-south-1.eks.amazonaws.com"
+    cluster_name     = "taskboard-eks"
+    cluster_version  = "1.31"
+    vpc_id           = "vpc-04e8cde5726307be9"
+    private_subnets  = ["subnet-0ea37fecaa2dddb08", "subnet-0072442194191fc2c"]
+    public_subnets   = ["subnet-0220a91305803b316", "subnet-08ddef5d1ceaa900e"]
+
+![EKS cluster](screenshots/21-13-eks-cluster.png)
+
+    $ aws eks describe-cluster --name taskboard-eks --region ap-south-1
+    +----------+-------------------------------------------------------+
+    |  name    |  taskboard-eks                                        |
+    |  status  |  ACTIVE                                               |
+    |  version |  1.31                                                 |
+    |  platform|  eks.71                                               |
+    +----------+-------------------------------------------------------+
+
+    $ kubectl get nodes
+    ip-10-30-1-28.ap-south-1.compute.internal   Ready   v1.31.14-eks-3b4a6ca
+    ip-10-30-2-52.ap-south-1.compute.internal   Ready   v1.31.14-eks-3b4a6ca
+
+Two `t3.medium` workers on Amazon Linux 2023, one per availability zone, in the
+private subnets.
+
+Design points: subnets carry the `kubernetes.io/role/elb` and
+`kubernetes.io/cluster/<name>` tags EKS needs to place load balancers; workers
+sit in private subnets reached through a NAT gateway; the AMI and availability
+zones come from data sources rather than literals, so the configuration is not
+pinned to one region; `enable_cluster_creator_admin_permissions` means `kubectl`
+works immediately after apply with no `aws-auth` edit.
+
+### Deploying the chart to the real cluster
+
+![EKS deployment](screenshots/21-14-eks-deploy.png)
+
+The frontend pods came up on EKS pulling
+`ghcr.io/mahirabidi12/devops-assignment-taskboard-frontend:latest` — the image
+the pipeline above published. That is the registry half of the pipeline verified
+end to end, on real infrastructure.
+
+**Postgres stayed `Pending`, and the reason is worth recording.** EKS does not
+ship the **EBS CSI driver**. `gp2` exists as a StorageClass, but its provisioner
+is absent, so nothing can create the volume:
+
+    Waiting for a volume to be created either by the external provisioner
+    'ebs.csi.aws.com' or manually by the system administrator.
+
+kind has the local-path provisioner built in, which is why the identical chart
+worked there unchanged.
+
+That exposed a genuine portability bug in the chart: the `volumeClaimTemplate`
+set no `storageClassName`, so it depended on a cluster default existing. kind
+marks one default; **EKS does not**. The chart now takes
+`postgres.storageClass` as a value, set explicitly per environment:
+
+    helm install taskboard ./helm/taskboard --set postgres.storageClass=gp2
+
+Finishing the EKS deployment would need the `aws-ebs-csi-driver` addon with an
+IRSA role. That was not pursued: the cluster bills by the hour, and M8 below is
+already evidenced in full on the local cluster. The portability fix — which is
+the part that matters — is in the chart.
+
+### Cost and teardown
 
 | | |
 |---|---|
 | EKS control plane | ~$0.10/hour |
 | 2 × t3.medium | ~$0.08/hour |
 | NAT gateway | ~$0.05/hour + data |
-| **Total** | **~$0.23/hour, about $5.50/day** |
 
-To provision and capture the evidence:
+The cluster lived for roughly 25 minutes and was destroyed in the same sitting.
 
-    cd terraform
-    cp terraform.tfvars.example terraform.tfvars
-    terraform init
-    terraform plan -out=tfplan
-    terraform apply tfplan          # takes 15-20 minutes for EKS
-    aws eks update-kubeconfig --region ap-south-1 --name taskboard-eks
-    kubectl get nodes
-    terraform destroy               # run this the same day
+![terraform destroy](screenshots/21-15-tf-destroy.png)
 
-Design points: subnets carry the `kubernetes.io/role/elb` and
-`kubernetes.io/cluster/<name>` tags EKS needs to place load balancers; workers
-sit in private subnets; `enable_cluster_creator_admin_permissions` means
-`kubectl` works immediately after apply without an `aws-auth` edit.
-
----
+`destroy` walks the dependency graph backwards: the node group drains before the
+control plane, which goes before the subnets and the NAT gateway. It takes
+10–15 minutes, and it is worth confirming it finished — an interrupted destroy
+leaves the control plane and the NAT gateway billing, which are the two
+expensive pieces.
 
 ## M8 — Kubernetes and Helm
 
