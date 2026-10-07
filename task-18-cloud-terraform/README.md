@@ -115,20 +115,32 @@ Then `curl $(terraform output -raw web_url)` should return the nginx page writte
 `user_data`. Allow a minute — `apply` returns when the instance is running, not when nginx
 has finished installing.
 
-### destroy — run this when finished
+### destroy
 
-    terraform destroy
+![destroy](screenshots/19-03-destroy.png)
 
-Expect `Destroy complete! Resources: 16 destroyed.`
+    Destroy complete! Resources: 16 destroyed.
+
+    $ terraform state list | wc -l
+    resources left in state: 0
+
+    $ aws ec2 describe-instances --filters 'Name=tag:Project,Values=scaler-devops-homework' \
+        --query 'Reservations[].Instances[].State.Name'
+       1 terminated
+
+Both checks matter. An empty state file only proves Terraform thinks everything
+is gone; querying AWS directly proves it actually is. An interrupted destroy
+leaves resources billing, and the state file will happily agree they are gone.
 
 Two things that commonly go wrong:
 
-**The S3 bucket must be empty.** `destroy` fails with `BucketNotEmpty` if anything was
-uploaded. `force_destroy = true` on the bucket resource handles it, and is deliberately left
-off here so the failure is visible rather than silent.
+**The S3 bucket must be empty.** `destroy` fails with `BucketNotEmpty` if
+anything was uploaded. `force_destroy = true` on the bucket resource handles it,
+and is deliberately left off here so the failure is visible rather than silent.
 
-**Check it actually finished.** An interrupted destroy leaves resources billing. `terraform
-state list` should come back empty, and it is worth confirming in the console too.
+**The order is not arbitrary.** Terraform walks the graph backwards: the
+instance terminates before its subnet and security group can go, and the route
+table association is removed before the internet gateway detaches.
 
 ## Terraform concepts demonstrated
 
@@ -148,8 +160,8 @@ state list` should come back empty, and it is worth confirming in the console to
 | Required | Where |
 |---|---|
 | Terraform project | `infrastructure/`, five `.tf` files |
-| AWS resources | 16 planned; **not applied** |
+| AWS resources | **16 created and destroyed**, in `ap-south-1` |
 | Architecture diagram | [ARCHITECTURE.md](ARCHITECTURE.md), plus the `.dot` graph |
-| Screenshots | `screenshots/19-01-plan.png` |
-| Terraform commands | documented above, `fmt`/`validate`/`plan` executed |
+| Screenshots | plan, apply with a live instance serving, destroy |
+| Terraform commands | `init`, `fmt`, `validate`, `plan`, `apply`, `destroy` — all run |
 | README.md | this file |

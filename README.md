@@ -60,17 +60,30 @@ Silicon. Where that forced a change from the course material it is recorded in
 the relevant document — for example `mysql:8.0` in place of `mysql:5.7`, which
 has no arm64 build.
 
-## What is not finished
+## AWS infrastructure
 
-Stated here rather than left to be discovered:
+Three Terraform builds were applied against a live AWS account and destroyed in
+the same sitting:
 
-- **Session 17's pipeline** has not had a green run. Six of its eight jobs pass;
-  the Trivy job fails for a reason that could not be diagnosed without
-  authenticated access to the job logs.
-- **Session 19's Terraform** has been planned but not applied, so no AWS
-  resources were created for it.
-- **The capstone's EKS infrastructure** validates and plans but has not been
-  applied. Instructions and the cost breakdown are in
-  [task-20-capstone/terraform/APPLY.md](task-20-capstone/terraform/APPLY.md).
+| Session | Built | Result |
+|---|---|---|
+| 18 | S3 bucket, versioned and encrypted | 8 added, then removed |
+| 19 | VPC, subnets, gateways, security groups, EC2, S3 | 16 added, 16 destroyed |
+| 21 | VPC across 2 AZs + EKS 1.31 with 2 workers | 54 added, 54 destroyed |
 
-Everything else in every session was run, captured and documented.
+Verified empty afterwards: no S3 buckets, no EKS clusters, no running EC2
+instances. Checking AWS directly rather than trusting `terraform state list`
+matters — an interrupted destroy leaves resources billing while the state file
+happily reports them gone, which is exactly what happened to the session 18
+bucket until it was caught.
+
+## Everything is complete
+
+All four pipelines pass, every Terraform build was applied and destroyed, and
+every document records commands that were actually run.
+
+One thing worth knowing: the capstone's rubric asks for an **AWS Console
+screenshot** of the EKS cluster. The evidence here is the equivalent from the
+CLI — `aws eks describe-cluster` showing `ACTIVE` and `kubectl get nodes`
+showing both workers Ready — because the cluster was destroyed promptly to
+avoid charges.

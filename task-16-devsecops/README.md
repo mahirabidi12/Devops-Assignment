@@ -8,8 +8,42 @@ image scanning, each able to fail the build.
 At **`.github/workflows/devsecops.yml`** in the repository root, with `paths:` filters
 scoping it to this folder so other tasks do not trigger it.
 
-Every scanner below was **run for real locally**, including genuine vulnerabilities found
-and fixed. **Screenshot of the Actions run:** add it to `screenshots/` after the first push.
+![pipeline](screenshots/17-05-pipeline.png)
+
+    DevSecOps · commit e534436
+    Status: completed    Conclusion: SUCCESS
+    Duration: 2m36s
+
+      [v] SAST (Bandit)        success  [v] Build image           success
+      [v] SCA (pip-audit)      success  [v] Image scan (Trivy)    success
+      [v] Secret scan          success  [v] Publish               success
+      [v] Test                 success  [-] Deploy                skipped
+
+      7 succeeded, 1 skipped, 0 failed
+
+`Deploy` is skipped by design — it sits behind `vars.DEPLOY_ENABLED` because it
+needs a cluster and a `KUBECONFIG` secret.
+
+### Three bugs the pipeline found by being run
+
+**1. The Trivy action tag is `v`-prefixed.** `@0.28.0` cannot be resolved, so the
+job failed at "Set up job" before any step executed.
+
+**2. GHCR rejects uppercase image names.** This repository is
+`Devops-Assignment`. The CD workflow survived it only because
+`docker/metadata-action` lowercases automatically; this job built its tag by
+hand and had to do it explicitly.
+
+**3. `limit-severities-for-sarif`.** The one that took longest. With
+`format: sarif` the action **drops the `--severity` filter**, so the exit code is
+computed over *every* severity rather than the HIGH and CRITICAL the gate is
+configured for. The image had zero fixable HIGH/CRITICAL and still failed, on
+MEDIUM and LOW findings it was never meant to block.
+
+None of the three is visible to YAML validation or to running the steps locally.
+
+Every scanner below was also **run for real locally**, including genuine
+vulnerabilities found and fixed.
 
 Two things were fixed so the pipeline passes on a runner rather than failing on it:
 
