@@ -1,0 +1,29 @@
+# Accepted dependency vulnerabilities, with reasoning and a review date.
+#
+# Every entry below is in starlette and every fix requires starlette 1.x.
+# FastAPI 0.142.2 requires starlette <1.0, so adopting any of these fixes means
+# waiting for FastAPI to support the 1.x line. None affects this application.
+#
+# Review: 2026-12-31, or whenever FastAPI supports starlette 1.x.
+#
+# Mirrors .trivyignore at the project root, which covers the same issues as the
+# two CVE ids Trivy reports them under.
+
+# URL reconstruction from the Host header. This API is reached only through the
+# cluster Ingress, which sets the Host, and no code here builds URLs from it.
+PYSEC-2026-161
+
+# request.form() size limits ignored for x-www-form-urlencoded bodies.
+# Every endpoint accepts JSON only; there is no form parsing in the application.
+PYSEC-2026-249
+
+# HTTP request path not normalised before routing. All routes here are explicit
+# and there is no path-based authorisation to bypass.
+PYSEC-2026-248
+
+# StaticFiles UNC path handling on Windows. StaticFiles is not used - the
+# frontend is a separate nginx container - and this runs only in Linux images.
+PYSEC-2026-2281
+
+# Related StaticFiles dispatch issue, same reasoning as above.
+PYSEC-2026-2280

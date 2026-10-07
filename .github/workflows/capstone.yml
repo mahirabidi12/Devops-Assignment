@@ -61,8 +61,14 @@ jobs:
       - name: Bandit (SAST)
         run: bandit -r app/ -ll
 
+      # Exclusions come from .pip-audit-ignore, where each one carries a written
+      # justification and a review date. A bare list of ignored ids is
+      # indistinguishable from someone hiding a real finding.
       - name: pip-audit (SCA)
-        run: pip-audit -r requirements.txt
+        run: |
+          IGNORES=$(grep -v '^#' .pip-audit-ignore | grep -v '^$' | sed 's/^/--ignore-vuln /' | tr '\n' ' ')
+          echo "ignoring (with reasons in .pip-audit-ignore): $IGNORES"
+          pip-audit -r requirements.txt $IGNORES
 
       - uses: actions/upload-artifact@v4
         if: always()

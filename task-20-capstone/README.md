@@ -206,6 +206,15 @@ affects `request.form()` limits (this API is JSON only). They are recorded in
 A `.trivyignore` of bare CVE ids with no explanation is indistinguishable from
 someone hiding a real problem. The reasoning is the point.
 
+**pip-audit needed the same treatment, separately.** The first pipeline run
+failed at the SCA step: pip-audit reports the same starlette issues under five
+PYSEC ids and does not read `.trivyignore`. `backend/.pip-audit-ignore` carries
+them with the same per-entry justification, and the workflow reads that file
+rather than hardcoding a list of ids in the YAML.
+
+Two scanners, two ignore formats, one underlying problem. Worth knowing before
+assuming a single exclusion file covers a pipeline.
+
 ---
 
 ## M7 — Terraform
