@@ -280,6 +280,15 @@ outright, because `kube-proxy` has no address to forward to. That is a different
 from a `404` or a timeout, and the distinction is what tells you to look at labels rather
 than at the application.
 
+## Further sections for this task
+
+| Folder | Covers |
+|---|---|
+| [`fqdn/`](fqdn/README.md) | FQDN anatomy, the DNS search list, same- vs cross-namespace names, Service and pod name forms |
+| [`coredns/`](coredns/README.md) | what CoreDNS is, how a query resolves, the Corefile and its plugins, DNS troubleshooting |
+
+The DNS output above is summarised there in more depth.
+
 ## Cleanup
 
     kubectl delete -f manifests/01-clusterip/ -f manifests/02-nodeport/ \
