@@ -67,7 +67,7 @@ restarts every pod when the database blips, turning a recoverable outage into a
 total one. Liveness answers "is this process wedged"; readiness answers "should
 traffic come here".
 
-![API CRUD](screenshots/21-01-api-crud.png)
+![API CRUD](screenshots/M1-01-rest-api-crud.png)
 
 Every endpoint exercised against the real PostgreSQL in compose — create, list,
 update, filter, stats and delete, with the 204 on delete.
@@ -84,7 +84,7 @@ task can be advanced through todo → in progress → done or deleted.
 
 ## M2 — Testing
 
-![pytest](screenshots/21-07-pytest.png)
+![pytest](screenshots/M2-01-pytest-13-passing.png)
 
     13 passed, 2 warnings in 0.43s
     TOTAL  126 stmts  9 miss  93% coverage
@@ -132,7 +132,7 @@ The frontend's `node_modules` never reaches the runtime image — only the built
 `condition: service_completed_successfully`. The schema always exists before the
 first request.
 
-![compose stack](screenshots/21-10-compose.png)
+![compose stack](screenshots/M4-01-docker-compose-healthy.png)
 
     NAME                 STATUS
     taskboard-backend    Up 54 seconds (healthy)
@@ -157,7 +157,7 @@ Both now use `127.0.0.1` explicitly.
 **Two networks.** The frontend is only on `frontend-net`, so it has no route to
 the database at all:
 
-![frontend and network isolation](screenshots/21-02-frontend-isolation.png)
+![frontend and network isolation](screenshots/M4-02-network-isolation.png)
 
     $ docker compose exec frontend getent hosts db
     db does not resolve from the frontend
@@ -178,7 +178,7 @@ the database at all:
 GHCR tagged with the commit SHA — never `latest` alone, so a deployed image is
 always traceable to the commit that produced it.
 
-![Capstone pipeline](screenshots/21-11-pipeline.png)
+![Capstone pipeline](screenshots/M5-01-github-actions-green.png)
 
     Capstone · Triggered by push on main · commit 21aa9ad
     Status: completed    Conclusion: SUCCESS
@@ -239,7 +239,7 @@ repository failing the same way:
 Four scanners: Bandit (SAST), pip-audit (SCA), and Trivy on both images, with
 `exit-code: 1` making the last one a gate rather than a report.
 
-![Trivy](screenshots/21-08-trivy.png)
+![Trivy](screenshots/M6-01-trivy-security-gate.png)
 
 **The gate found real problems on its first run.**
 
@@ -287,7 +287,7 @@ assuming a single exclusion file covers a pipeline.
 subnets, NAT gateway) and an **EKS cluster** with a managed node group.
 **54 resources, applied for real and destroyed afterwards.**
 
-![terraform apply](screenshots/21-12-tf-apply.png)
+![terraform apply](screenshots/M7-05-terraform-apply.png)
 
     Apply complete! Resources: 54 added, 0 changed, 0 destroyed.
 
@@ -298,7 +298,29 @@ subnets, NAT gateway) and an **EKS cluster** with a managed node group.
     private_subnets  = ["subnet-0ea37fecaa2dddb08", "subnet-0072442194191fc2c"]
     public_subnets   = ["subnet-0220a91305803b316", "subnet-08ddef5d1ceaa900e"]
 
-![EKS cluster](screenshots/21-13-eks-cluster.png)
+![EKS cluster in the console](screenshots/M7-01-eks-cluster-active.png)
+
+The cluster as the AWS Console shows it: **Active**, Kubernetes 1.31, platform
+`eks.71`, one node group, zero health issues.
+
+![node group](screenshots/M7-04-eks-node-group-active.png)
+
+The managed node group: **Active**, `t3.medium`, desired size 2, spread across
+both private subnets, running Amazon Linux 2023.
+
+![VPC](screenshots/M7-02-vpc-provisioned.png)
+
+The VPC at `10.30.0.0/16`, with the resource map showing four subnets across
+`ap-south-1a` and `ap-south-1b` and three route tables.
+
+![subnets](screenshots/M7-03-subnets-two-azs.png)
+
+All four subnets Available — public at `10.30.101.0/24` and `10.30.102.0/24`,
+private at `10.30.1.0/24` and `10.30.2.0/24`, one pair per availability zone.
+
+And the same facts from the CLI:
+
+![EKS from the CLI](screenshots/M7-07-eks-cli-verification.png)
 
     $ aws eks describe-cluster --name taskboard-eks --region ap-south-1
     +----------+-------------------------------------------------------+
@@ -324,7 +346,7 @@ works immediately after apply with no `aws-auth` edit.
 
 ### Deploying the chart to the real cluster
 
-![EKS deployment](screenshots/21-14-eks-deploy.png)
+![EKS deployment](screenshots/M8-03-helm-on-eks.png)
 
 The frontend pods came up on EKS pulling
 `ghcr.io/mahirabidi12/devops-assignment-taskboard-frontend:latest` — the image
@@ -363,7 +385,7 @@ the part that matters — is in the chart.
 
 The cluster lived for roughly 25 minutes and was destroyed in the same sitting.
 
-![terraform destroy](screenshots/21-15-tf-destroy.png)
+![terraform destroy](screenshots/M7-06-terraform-destroy.png)
 
 `destroy` walks the dependency graph backwards: the node group drains before the
 control plane, which goes before the subnets and the NAT gateway. It takes
@@ -377,7 +399,7 @@ The chart renders **10 objects**: Deployments and Services for backend and
 frontend, a StatefulSet and headless Service for PostgreSQL, a ConfigMap, a
 Secret, an Ingress and an HPA.
 
-![kubectl and helm](screenshots/21-04-k8s-helm.png)
+![kubectl and helm](screenshots/M8-01-kubectl-pods-helm-list.png)
 
     $ helm list -n taskboard
     NAME       REVISION  STATUS    CHART            APP VERSION
@@ -395,7 +417,7 @@ Secret, an Ingress and an HPA.
 
 The HPA is reading real CPU, the PVC is bound, and all five pods are Running.
 
-![through the Ingress](screenshots/21-09-ingress.png)
+![through the Ingress](screenshots/M8-02-app-via-ingress.png)
 
 Reached through the Ingress, with `/` going to the frontend and `/api` to the
 backend. The screenshot is taken **after** a rolling restart onto the
@@ -423,7 +445,7 @@ Chart details worth noting:
 
 ## M9 — Observability
 
-![Prometheus](screenshots/21-05-prometheus.png)
+![Prometheus](screenshots/M9-02-prometheus-targets-up.png)
 
 Prometheus discovers the backend pods through Kubernetes service discovery —
 the chart sets `prometheus.io/scrape` on the pod template and a relabel rule
@@ -443,11 +465,11 @@ Real metrics, queried live:
 Three alert rules loaded. `BackendDown` (`up == 0`) is the most important one —
 a dashboard full of green means nothing if the scrape itself is failing.
 
-![metrics endpoint](screenshots/21-03-metrics.png)
+![metrics endpoint](screenshots/M9-01-metrics-endpoint.png)
 
 149 metric series exposed, labelled by handler, method and status.
 
-![Grafana](screenshots/21-06-grafana.png)
+![Grafana](screenshots/M9-03-grafana-dashboard.png)
 
 Grafana with the datasource and a 6-panel dashboard both provisioned from
 files, so the stack comes up ready to look at rather than needing anything
@@ -473,3 +495,34 @@ with a genuine gap.
     helm uninstall taskboard -n taskboard
     kubectl delete namespace taskboard monitoring
     cd terraform && terraform destroy   # only if you ran apply
+
+---
+
+## Screenshot index
+
+Named by rubric module, so each maps to a grading line.
+
+| File | Module | Shows |
+|---|---|---|
+| `M1-01-rest-api-crud.png` | M1 | all CRUD endpoints against the real database |
+| `M2-01-pytest-13-passing.png` | M2 | 13 tests passing, 93% coverage |
+| `M4-01-docker-compose-healthy.png` | M4 | the full stack up, all three containers healthy |
+| `M4-02-network-isolation.png` | M4 | the frontend unable to resolve the database |
+| `M5-01-github-actions-green.png` | M5 | the pipeline, 7 jobs, all green |
+| `M6-01-trivy-security-gate.png` | M6 | the Trivy gate passing after the fixes |
+| `M7-01-eks-cluster-active.png` | M7 | EKS cluster Active in the AWS Console |
+| `M7-02-vpc-provisioned.png` | M7 | the VPC and its resource map |
+| `M7-03-subnets-two-azs.png` | M7 | four subnets across two availability zones |
+| `M7-04-eks-node-group-active.png` | M7 | the node group, 2 × t3.medium, Active |
+| `M7-05-terraform-apply.png` | M7 | `Apply complete! Resources: 54 added` |
+| `M7-06-terraform-destroy.png` | M7 | `Destroy complete! Resources: 54 destroyed` |
+| `M7-07-eks-cli-verification.png` | M7 | the same cluster from the CLI |
+| `M8-01-kubectl-pods-helm-list.png` | M8 | all pods Running, `helm list`, PVC bound, HPA reading CPU |
+| `M8-02-app-via-ingress.png` | M8 | the application reached through the Ingress |
+| `M8-03-helm-on-eks.png` | M8 | the chart deployed to the real EKS cluster |
+| `M9-01-metrics-endpoint.png` | M9 | `/metrics` in Prometheus format |
+| `M9-02-prometheus-targets-up.png` | M9 | both backend pods discovered and scraping |
+| `M9-03-grafana-dashboard.png` | M9 | the provisioned 6-panel dashboard |
+
+The infrastructure in the M7 screenshots was destroyed immediately after they
+were taken. Nothing is left running on AWS.
