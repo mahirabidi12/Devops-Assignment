@@ -1,0 +1,26 @@
+# The smallest useful workflow, kept as a reference for the vocabulary.
+#
+#   workflow  →  the whole file
+#   job       →  runs on one runner, jobs are parallel unless `needs` says otherwise
+#   step      →  one command or one action, steps are sequential and share a filesystem
+#   runner    →  the machine the job runs on
+
+name: Hello
+
+on: [workflow_dispatch]
+
+jobs:
+  greet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: A step that runs a command
+        run: echo "Hello from ${{ github.repository }} on ${{ github.ref_name }}"
+
+      - name: A step that uses an action
+        uses: actions/checkout@v4
+
+      - name: A step with several commands
+        run: |
+          echo "commit:  ${{ github.sha }}"
+          echo "event:   ${{ github.event_name }}"
+          echo "runner:  ${{ runner.os }}"

@@ -1,0 +1,31 @@
+# Alternative base. The Debian-based image scans with 44 HIGH/CRITICAL CVEs, all
+# of them in distro packages this application never calls. Alpine ships a much
+# smaller package set, so there is far less to be vulnerable.
+#
+# The trade: musl libc instead of glibc, which can break wheels that ship
+# compiled extensions. For a pure-Python app like this one it is free.
+
+FROM python:3.12-alpine AS builder
+
+WORKDIR /build
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+
+FROM python:3.12-alpine AS runtime
+
+RUN apk upgrade --no-cache
+
+RUN adduser -D -u 10001 appuser
+
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY app/ ./app/
+
+USER appuser
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request;urllib.request.urlopen('http://localhost:5000/health')"
+
+CMD ["python", "-m", "flask", "--app", "app.app", "run", "--host", "0.0.0.0", "--port", "5000"]

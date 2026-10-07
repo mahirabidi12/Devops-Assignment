@@ -1,0 +1,243 @@
+# CI/CD with security gates.
+#
+# Lives at the repository root, scoped with `paths:` to the session 17 project.
+#
+# The pipeline order is deliberate. Cheap, fast checks that need no build run
+# first, so a committed secret fails the run in seconds rather than after a
+# five-minute image build.
+#
+#   secrets ─┐
+#   sast    ─┼─▶ test ──▶ build ──▶ image-scan ──▶ publish ──▶ deploy
+#   sca     ─┘
+
+name: DevSecOps
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'task-16-devsecops/**'
+      - '.github/workflows/devsecops.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'task-16-devsecops/**'
+      - '.github/workflows/devsecops.yml'
+  workflow_dispatch:
+  schedule:
+    # Re-scan weekly. A CVE published after the last commit still affects a
+    # running image, and nothing else would notice.
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+# The project is a subdirectory, so `run` steps start there.
+defaults:
+  run:
+    working-directory: task-16-devsecops
+
+jobs:
+  # ------------------------------------------------- secret scanning ----
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # Gitleaks needs full history, not just the tip
+
+      # Scans the whole repository and its history, so no working-directory.
+      - name: Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------ SAST ----
+  sast:
+    name: SAST (Bandit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write    # to upload SARIF to the Security tab
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+
+      # -ll reports medium and above. Findings deliberately accepted are
+      # suppressed inline with `# nosec` plus a written justification.
+      - name: Bandit
+        run: bandit -r app/ -ll -f sarif -o bandit.sarif
+
+      - name: Upload to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: task-16-devsecops/bandit.sarif
+
+  # ------------------------------------------------------------- SCA ----
+  sca:
+    name: SCA (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements-dev.txt
+
+      # Fails the build on any known vulnerability in a pinned dependency.
+      - name: pip-audit
+        run: pip-audit -r requirements.txt
+
+  # ------------------------------------------------------------ test ----
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: [secrets, sast, sca]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: pytest --cov=app --cov-report=term-missing
+
+  # ----------------------------------------------------------- build ----
+  build:
+    name: Build image
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: task-16-devsecops
+          file: task-16-devsecops/Dockerfile.alpine     # the base that scans clean
+          push: false
+          load: true
+          tags: api:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Save image
+        run: docker save api:${{ github.sha }} -o image.tar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image
+          path: task-16-devsecops/image.tar
+          retention-days: 1
+
+  # ------------------------------------------------------ image scan ----
+  image-scan:
+    name: Image scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: image
+
+      - run: docker load -i image.tar
+        working-directory: .
+
+      # THE GATE. exit-code 1 fails the build, so a vulnerable image cannot be
+      # published. ignore-unfixed avoids blocking on CVEs with no available fix,
+      # which would otherwise make the gate permanently red and get disabled.
+      - name: Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: api:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: sarif
+          output: trivy.sarif
+
+      - name: Upload to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+
+  # ------------------------------------------------------- publish ----
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    needs: image-scan
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # Required for provenance and SBOM attestations below; the default docker
+      # driver cannot produce them.
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: task-16-devsecops
+          file: task-16-devsecops/Dockerfile.alpine
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          provenance: true          # supply-chain attestation
+          sbom: true                # software bill of materials
+
+  # -------------------------------------------------------- deploy ----
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: publish
+
+    # Skipped unless the repository variable DEPLOY_ENABLED is set to 'true' and
+    # a KUBECONFIG secret exists. Without this guard the job fails on every run
+    # for anyone who has not wired up a cluster, turning the whole pipeline red.
+    if: vars.DEPLOY_ENABLED == 'true'
+
+    environment: production         # can require manual approval
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+
+      - name: Cluster access
+        run: |
+          mkdir -p "$HOME/.kube"
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      - name: Deploy
+        run: |
+          kubectl set image deployment/api \
+            api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            -n production
+          kubectl rollout status deployment/api -n production --timeout=3m

@@ -1,0 +1,21 @@
+# Default-deny ingress, then allow only what is needed. Without a NetworkPolicy
+# every pod in the namespace can reach every other one, which is the flat
+# network described in the task 8 architecture notes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: devsecops-api
+spec:
+  podSelector:
+    matchLabels:
+      app: devsecops-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 5000
