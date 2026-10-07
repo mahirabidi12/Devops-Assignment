@@ -1,0 +1,33 @@
+# FIX: the container exits 1 when DATABASE_URL is unset. Supply it.
+# In a real deployment this value would come from a ConfigMap or a Secret
+# rather than being inlined here.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fix-1-crashloop-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: crashloop
+spec:
+  containers:
+    - name: python-app
+      image: python:3.11-alpine
+      env:
+        - name: DATABASE_URL
+          value: "postgresql://app:secret@postgres.default.svc.cluster.local:5432/appdb"
+      # -u keeps stdout unbuffered, otherwise the prints never reach kubectl logs
+      command:
+        - "python3"
+        - "-u"
+        - "-c"
+        - |
+          import os, sys
+          db_url = os.environ.get("DATABASE_URL")
+          if not db_url:
+              print("[FATAL ERROR]: DATABASE_URL environment variable is MISSING!", file=sys.stderr)
+              sys.exit(1)
+          print("Application started successfully!")
+          print(f"Connected to: {db_url}")
+          import time
+          while True:
+              time.sleep(30)

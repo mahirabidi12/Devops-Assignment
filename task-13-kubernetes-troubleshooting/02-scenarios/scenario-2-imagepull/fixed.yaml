@@ -1,0 +1,13 @@
+# FIX: the original referenced an image that does not exist in any registry.
+# Replaced with a real, pullable image.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fix-2-imagepull-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: imagepull
+spec:
+  containers:
+    - name: web-app
+      image: nginx:1.27-alpine

@@ -1,0 +1,21 @@
+# FIX: the original requested 500 CPU cores and 1000Gi of memory, which no node
+# in this cluster can satisfy, so the scheduler had nowhere to place it.
+# Requests must reflect what the workload actually needs.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fix-3-pending-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: pending
+spec:
+  containers:
+    - name: hungry-app
+      image: nginx:alpine
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"

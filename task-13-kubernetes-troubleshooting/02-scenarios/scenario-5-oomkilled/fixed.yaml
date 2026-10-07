@@ -1,0 +1,35 @@
+# FIX: the container allocated ~1GB while the limit was 20Mi, so the kernel
+# OOM killer terminated it. Two things were wrong and both are addressed:
+#   1. the limit was far below what the workload actually needs
+#   2. the workload itself allocated without bound
+# A realistic limit alone would only delay the failure; the allocation is capped too.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fix-5-oomkilled-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: oomkilled
+spec:
+  containers:
+    - name: memory-leaker
+      image: python:3.11-alpine
+      command:
+        - "python3"
+        - "-u"
+        - "-c"
+        - |
+          print("Allocating memory within budget...")
+          chunks = []
+          for i in range(5):
+              chunks.append(b"x" * (10 * 1024 * 1024))
+              print(f"allocated {(i + 1) * 10}MB")
+          print("Done. Holding steady.")
+          import time
+          while True:
+              time.sleep(30)
+      resources:
+        requests:
+          memory: "64Mi"
+        limits:
+          memory: "128Mi"

@@ -1,0 +1,9 @@
+# FIX: nginx has no tag "this-tag-does-not-exist". Use a real one.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: project-fixed-pod
+spec:
+  containers:
+    - name: app
+      image: nginx:1.27
