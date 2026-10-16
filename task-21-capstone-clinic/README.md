@@ -498,7 +498,7 @@ Panels: targets up, request rate, p95 latency, error rate, rate by handler,
 and p50/p95/p99 duration — the stack comes up ready to look at rather than
 needing anything clicked.
 
-*Screenshot still needed: the Grafana dashboard rendered in a browser (`screenshots/M9-03-...png`). Confirmed functionally correct via the API above; a visual screenshot needs a real display session.*
+Grafana dashboard screenshot added: `screenshots/M9-03-grafana-dashboard.png`.
 
 ---
 

@@ -6,8 +6,9 @@ deployment.
 
 ## Where the workflows live
 
-At **`.github/workflows/`** in the repository root — `ci.yml`, `cd.yml` and `hello.yml` —
-because GitHub only reads workflows from there. They carry `paths:` filters scoping them to
+At **`.github/workflows/`** in the repository root — `ci.yml` and `cd.yml`
+(an earlier `hello.yml` vocabulary exercise has since been removed as dead
+weight) — because GitHub only reads workflows from there. They carry `paths:` filters scoping them to
 this folder, so editing any other task does not trigger them:
 
     on:
@@ -85,7 +86,6 @@ the same thing.
     ├── Dockerfile                  multi-stage, non-root
     ├── .dockerignore
     └── .github-workflows/
-        ├── hello.yml               the vocabulary, minimal
         ├── ci.yml                  lint → test → build
         └── cd.yml                  publish → deploy
 
