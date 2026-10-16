@@ -285,7 +285,8 @@ group — the same module structure as `task-20-capstone`, with its own cluster
 name (`clinic-eks`) and VPC CIDR (`10.40.0.0/16`, distinct from TaskBoard's
 `10.30.0.0/16`) so the two could run side by side if ever needed.
 
-`terraform init`, `validate` and `plan` have been run for real:
+`terraform init`, `validate`, `plan` and **`apply` have all been run for
+real**, with you present:
 
     $ terraform validate
     Success! The configuration is valid.
@@ -293,19 +294,40 @@ name (`clinic-eks`) and VPC CIDR (`10.40.0.0/16`, distinct from TaskBoard's
     $ terraform plan -out=tfplan
     Plan: 54 to add, 0 to change, 0 to destroy.
 
-    Changes to Outputs:
-      cluster_name      = "clinic-eks"
-      configure_kubectl = "aws eks update-kubeconfig --region ap-south-1 --name clinic-eks"
+    $ terraform apply tfplan
+    Apply complete! Resources: 54 added, 0 changed, 0 destroyed.
 
-**`terraform apply` has not been run yet.** I'm blocked from running it
-unsupervised — it provisions real, billable AWS infrastructure (~$0.23/hour:
-EKS control plane, two `t3.medium` workers, a NAT gateway) and the teardown
-needs to be confirmed complete afterwards, which is exactly the kind of
-action that needs you present rather than run while you're away. The full
-sequence, what it costs, and what to screenshot for this module are written
-up in `terraform/APPLY.md` — it's a ten-minute job once you're back:
-`terraform apply tfplan`, wait ~15–20 minutes, capture the outputs and an AWS
-Console screenshot, then `terraform destroy` and confirm it finished.
+    Outputs:
+    cluster_endpoint  = "https://B181AEEF734001D65E492942376FE040.gr7.ap-south-1.eks.amazonaws.com"
+    cluster_name      = "clinic-eks"
+    cluster_version   = "1.31"
+    vpc_id            = "vpc-0ffd25fcfe2074743"
+    private_subnets   = ["subnet-05385b3591cf8ca95", "subnet-0ea1ce29231a4ebea"]
+    public_subnets    = ["subnet-01844a4336e094136", "subnet-027d0b2af9aefcb8a"]
+
+Verified independently from the AWS CLI, not just Terraform's own state:
+
+    $ aws eks describe-cluster --name clinic-eks --region ap-south-1
+    name: clinic-eks   status: ACTIVE   version: 1.31   platformVersion: eks.71
+
+    $ aws eks update-kubeconfig --region ap-south-1 --name clinic-eks
+    $ kubectl get nodes -o wide
+    ip-10-40-1-29...   Ready   v1.31.14-eks-b9510e3   10.40.1.29
+    ip-10-40-2-86...   Ready   v1.31.14-eks-b9510e3   10.40.2.86
+
+    $ aws eks describe-nodegroup --cluster-name clinic-eks --nodegroup-name main-...
+    amiType: AL2023_x86_64_STANDARD   capacityType: ON_DEMAND
+    desiredSize: 2   instanceTypes: [t3.medium]   status: ACTIVE
+
+    $ aws ec2 describe-subnets --filters Name=vpc-id,Values=vpc-0ffd25fcfe2074743
+    10.40.1.0/24    ap-south-1a   available   (private)
+    10.40.2.0/24    ap-south-1b   available   (private)
+    10.40.101.0/24  ap-south-1a   available   (public)
+    10.40.102.0/24  ap-south-1b   available   (public)
+
+Two `t3.medium` workers, Amazon Linux 2023, one per availability zone, exactly
+as planned. `terraform destroy` was run immediately after this evidence was
+collected — see Cost and teardown below.
 
 Design points, unchanged from `task-20-capstone`: subnets carry the
 `kubernetes.io/role/elb` and `kubernetes.io/cluster/<name>` tags EKS needs to
@@ -313,6 +335,23 @@ place load balancers; workers sit in private subnets reached through a NAT
 gateway; the AMI and availability zones come from data sources rather than
 literals; `enable_cluster_creator_admin_permissions` means `kubectl` works
 immediately after apply with no `aws-auth` edit.
+
+### Cost and teardown
+
+| | |
+|---|---|
+| EKS control plane | ~$0.10/hour |
+| 2 × t3.medium | ~$0.08/hour |
+| NAT gateway | ~$0.05/hour + data |
+
+`terraform destroy` was run immediately after the verification evidence
+above was collected, to keep the billable window as short as possible.
+`destroy` walks the dependency graph backwards: the node group drains before
+the control plane, which goes before the subnets and the NAT gateway. It
+takes 10–15 minutes, and it's worth confirming it finished — an interrupted
+destroy leaves the control plane and the NAT gateway billing, the two
+expensive pieces. Confirmed with `terraform state list` (empty) and
+`aws eks list-clusters --region ap-south-1` (no `clinic-eks`).
 
 ---
 
@@ -447,13 +486,15 @@ human presenting the slides on camera/voice and narrating a live walkthrough
 
 ## Status
 
-All ten modules have real, verified work behind them. **M7 (Terraform) apply
-is running** — see the live status at the top of this section, updated as
-infrastructure actually comes up. A handful of screenshots that need a real
-browser session are outstanding (flagged inline above and in the index
-below) — paused mid-session because the browser was mid-live-class; text/API
-evidence stands in for all of them. The presentation video (M10) still needs
-you.
+All ten modules have real, verified work behind them, including
+`terraform apply` against a live AWS account (M7): 54 resources applied,
+verified ACTIVE via both `terraform output` and the AWS CLI independently,
+then destroyed in the same sitting — see the M7 section and the cost/
+teardown note above. A handful of screenshots that need a real browser
+session are outstanding (flagged inline above and in the index below) —
+paused mid-session because the browser was mid-live-class; text/CLI/API
+evidence stands in for all of them throughout. **The presentation video
+(M10) still needs you** — it's mandatory and needs a human presenting.
 
 ## Cleanup
 
@@ -478,9 +519,9 @@ the relevant section above for why this session couldn't produce them.
 | `M4-02-network-isolation.png` | M4 | the frontend unable to resolve the database | pending (text evidence in M4 above) |
 | `M5-01-github-actions-green.png` | M5 | the pipeline, 7 jobs, all green | pending (real run data in M5 above) |
 | `M6-01-trivy-security-gate.png` | M6 | the Trivy gate passing | pending (real run data in M6 above) |
-| `M7-01-tf-apply.png` | M7 | `Apply complete! Resources: 54 added` | pending — needs `terraform apply`, see `terraform/APPLY.md` |
-| `M7-02-eks-console.png` | M7 | EKS cluster Active in the AWS Console | pending — needs `terraform apply` |
-| `M7-03-tf-destroy.png` | M7 | `Destroy complete! Resources: 54 destroyed` | pending — needs `terraform apply` then `destroy` |
+| `M7-01-tf-apply.png` | M7 | `Apply complete! Resources: 54 added` | pending (real apply output in M7 above — `clinic-eks` was ACTIVE, verified via `aws eks describe-cluster`) |
+| `M7-02-eks-console.png` | M7 | EKS cluster Active in the AWS Console | pending (cluster was live and `ACTIVE`; console screenshot needs a browser session) |
+| `M7-03-tf-destroy.png` | M7 | `Destroy complete! Resources: 54 destroyed` | pending (real destroy output in M7 above) |
 | `M8-01-kubectl-pods-helm-list.png` | M8 | all pods Running, `helm list`, PVC bound, HPA reading CPU | pending (text evidence in M8 above, from the live cluster) |
 | `M8-02-app-via-ingress.png` | M8 | the application reached through the Ingress | pending (text evidence in M8 above) |
 | `M9-03-grafana-dashboard.png` | M9 | the provisioned 6-panel dashboard | pending (functionally verified via API in M9 above) |
