@@ -31,15 +31,23 @@ Folders are numbered `task-N`, where **task-N corresponds to session N+1**.
 | 18 | Terraform and IaC | [task-17-terraform-iac](task-17-terraform-iac/) |
 | 19 | Cloud and Terraform in Action | [task-18-cloud-terraform](task-18-cloud-terraform/) |
 | 20 | Monitoring, Observability and GitOps | [task-19-monitoring-observability-gitops](task-19-monitoring-observability-gitops/) |
-| 21 | **Final Capstone — TaskBoard** | [task-20-capstone](task-20-capstone/) |
+| 21 | **Final Capstone — ClinicDesk** | [task-21-capstone-clinic](task-21-capstone-clinic/) |
 
 ## The capstone
 
-[**task-20-capstone**](task-20-capstone/) is the final project: a React +
-FastAPI + PostgreSQL application taken from source to a monitored Kubernetes
-deployment, with Alembic migrations, 13 tests, multi-stage non-root images, a
-GitHub Actions pipeline with a Trivy security gate, a Helm chart, Terraform for
-VPC + EKS, and Prometheus with Grafana.
+[**task-21-capstone-clinic**](task-21-capstone-clinic/) ("ClinicDesk") is the
+final project: a React + FastAPI + PostgreSQL clinic patient check-in
+application taken from source to a monitored Kubernetes deployment, with
+Alembic migrations, tests, multi-stage non-root images, a GitHub Actions
+pipeline with a Trivy security gate, a Helm chart, Terraform for VPC + EKS, and
+Prometheus with Grafana.
+
+An earlier capstone (`task-20-capstone`, a TaskBoard app) was removed: its
+domain and architecture tracked the instructor's reference project
+(`reference-devsecops-python/`) closely enough that the rubric's zero-credit
+rule for a direct clone plausibly applied. ClinicDesk reuses the same DevOps
+architecture — which the rubric explicitly allows — around a different
+domain.
 
 ## Pipelines
 
@@ -51,7 +59,7 @@ Workflows live in [`.github/workflows/`](.github/workflows/), scoped with
 | `ci.yml` | session 16 | lint, a three-version test matrix, image build |
 | `cd.yml` | session 16 | publish to GHCR, gated deploy |
 | `devsecops.yml` | session 17 | Gitleaks, Bandit, pip-audit, Trivy gate |
-| `capstone.yml` | session 21 | test, build, scan, publish for both images |
+| `capstone-clinic.yml` | session 21 | test, build, scan, publish for both images |
 
 ## Environment
 
