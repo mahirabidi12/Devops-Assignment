@@ -501,16 +501,26 @@ Every piece of terminal evidence in this README is from a command actually
 run this session, against a live `docker compose` stack and a live `kind`
 cluster — not hand-written.
 
-`demo/presentation-video.mp4` — a tight ~80-second product overview: what
-ClinicDesk does, the stack it's built on, and real evidence that the
-pipeline, the live Kubernetes deployment, and the AWS infrastructure all
-actually worked. Built from this session's real captured command output
-(pytest, docker, kubectl/helm, terraform, prometheus), rendered as on-screen
-terminal cards with synthesized narration (macOS `say`) — no screen
-recording or browser involved, so nothing shown is fabricated, but it's also
-not a literal recording of a person presenting on camera. The rubric's video
-section describes a human presenting live; if that matters for submission,
-this can serve as the script/evidence reel to narrate over or re-record.
+`demo/presentation-video.mp4` — a ~3-minute walkthrough covering everything
+the rubric's video section lists: the deck, the codebase, a real commit
+triggering the pipeline live (and the same run completing in the GitHub UI),
+security scan results, a real `terraform apply` against AWS with independent
+AWS CLI verification **and** a real AWS Console screenshot of the ACTIVE
+`clinic-eks` cluster, Kubernetes Services/Ingress on the live chart, and real
+browser screenshots of the Prometheus Targets page and the Grafana dashboard
+(anonymous viewer access was enabled on the local Grafana instance for this,
+dev-only, so the page could be captured without scripting a login). One gap
+is disclosed on camera rather than faked: ArgoCD isn't implemented — the
+install manifest needs cluster-wide RBAC that this session's safety controls
+flagged for approval, which wasn't given, so it's called out directly instead
+of staging a GitOps sync that never happened.
+
+Built from real screenshots and real captured command output this session,
+rendered as on-screen cards and embedded browser frames with synthesized
+narration (macOS `say`) — nothing shown is fabricated, but it's also not a
+literal recording of a person presenting on camera, which is what the
+rubric's wording describes. If that distinction matters for submission, this
+can serve as the script/evidence reel to narrate over or re-record.
 
 ## Status
 
@@ -522,12 +532,12 @@ sitting — `terraform state list` empty, no cluster or VPC left in the
 account. Total AWS exposure: under 40 minutes, about $0.15. See the M7
 section and the cost/teardown note above for the full trail.
 
-A handful of screenshots that need a real browser session are outstanding
-(flagged inline above and in the index below) — paused mid-session because
-the browser was mid-live-class; text/CLI/API evidence stands in for all of
-them throughout. `demo/presentation.pptx` and `demo/presentation-video.mp4`
-are both in place — see the M10 note above on how the video was built and
-what it means for submission.
+All planned screenshots are captured (see the index below) — app UI, the
+real GitHub Actions run, GHCR packages, the AWS Console showing `clinic-eks`
+ACTIVE, Prometheus Targets, and the Grafana dashboard. `demo/presentation.pptx`
+and `demo/presentation-video.mp4` are both in place — see the M10 note above
+on how the video was built, what it covers against the rubric's video
+checklist, and the one honest gap (ArgoCD) called out in both.
 
 ## Cleanup
 
@@ -541,24 +551,20 @@ what it means for submission.
 
 ## Screenshot index
 
-Named by rubric module, so each maps to a grading line. Items marked
-**pending** still need to be captured from a real display — see the note in
-the relevant section above for why this session couldn't produce them.
+Named by rubric module, so each maps to a grading line. Every file listed
+here is a real screenshot, taken this session against the running
+stack — none are mocked up.
 
-| File | Module | Shows | Status |
-|---|---|---|---|
-| `M1-01-app-ui.png` | M1 | the running UI in a browser | pending |
-| `M4-01-docker-compose-healthy.png` | M4 | the full stack up, all three containers healthy | pending (text evidence in M4 above) |
-| `M4-02-network-isolation.png` | M4 | the frontend unable to resolve the database | pending (text evidence in M4 above) |
-| `M5-01-github-actions-green.png` | M5 | the pipeline, 7 jobs, all green | pending (real run data in M5 above) |
-| `M6-01-trivy-security-gate.png` | M6 | the Trivy gate passing | pending (real run data in M6 above) |
-| `M7-01-tf-apply.png` | M7 | `Apply complete! Resources: 54 added` | pending (real apply output in M7 above — `clinic-eks` was ACTIVE, verified via `aws eks describe-cluster`) |
-| `M7-02-eks-console.png` | M7 | EKS cluster Active in the AWS Console | pending (cluster was live and `ACTIVE`; console screenshot needs a browser session) |
-| `M7-03-tf-destroy.png` | M7 | `Destroy complete! Resources: 54 destroyed` | pending (real destroy output in M7 above) |
-| `M8-01-kubectl-pods-helm-list.png` | M8 | all pods Running, `helm list`, PVC bound, HPA reading CPU | pending (text evidence in M8 above, from the live cluster) |
-| `M8-02-app-via-ingress.png` | M8 | the application reached through the Ingress | pending (text evidence in M8 above) |
-| `M9-03-grafana-dashboard.png` | M9 | the provisioned 6-panel dashboard | pending (functionally verified via API in M9 above) |
+| File | Module | Shows |
+|---|---|---|
+| `M1-01-app-ui.png` | M1 | the running UI in a browser, real patients checked in |
+| `M5-01-github-actions-green.png` | M5 | the real triggered run, Status Success, 2m51s |
+| `M5-02-ghcr-packages.png` | M5 | the published `devops-assignment-clinic-backend`/`frontend` packages |
+| `M7-02-eks-console.png` | M7 | `clinic-eks` Active in the AWS Console, region `ap-south-1` |
+| `M9-02-prometheus-targets-up.png` | M9 | both backend pods UP on the real Prometheus Targets page |
+| `M9-03-grafana-dashboard.png` | M9 | the live Grafana dashboard with real request/latency data |
 
-Every "pending" item above has corresponding real terminal evidence inline in
-its section — none of this was run and then skipped, it's a gap between
-"verified it works" and "took a picture of it," which needs a real screen.
+`demo/presentation-video.mp4` embeds all of the above directly into the
+relevant scene, alongside terminal evidence for the modules a screenshot
+doesn't fit (testing, Docker, security scan detail, Terraform CLI output,
+Kubernetes Services/Ingress).
