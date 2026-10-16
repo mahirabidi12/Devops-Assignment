@@ -1,0 +1,62 @@
+# Defaults. Overridden per environment with -f values-prod.yaml or --set.
+
+image:
+  registry: ghcr.io
+  repository: mahirabidi12/devops-assignment-clinic
+  backendTag: latest
+  frontendTag: latest
+  pullPolicy: IfNotPresent
+
+backend:
+  replicaCount: 2
+  port: 8000
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+frontend:
+  replicaCount: 2
+  port: 8080
+  resources:
+    requests: { cpu: 50m,  memory: 64Mi }
+    limits:   { cpu: 200m, memory: 128Mi }
+
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  database: clinic
+  user: clinic
+  # Development default only. In production this comes from an external secret
+  # manager, never from values.yaml.
+  password: clinic
+  storage: 2Gi
+  # Empty means "use the cluster's default StorageClass". kind has one named
+  # standard and marks it default; EKS ships gp2 but does NOT mark it default,
+  # so a claim with no class set binds to nothing there. Set it explicitly per
+  # environment rather than assuming a default exists.
+  storageClass: ""
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { cpu: 500m, memory: 512Mi }
+
+config:
+  environment: production
+  logLevel: INFO
+
+ingress:
+  enabled: true
+  className: nginx
+  host: clinic.local
+  tls:
+    enabled: false
+    secretName: clinic-tls
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+serviceMonitor:
+  # Set true when the Prometheus Operator is installed.
+  enabled: false
