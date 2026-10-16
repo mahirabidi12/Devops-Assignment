@@ -430,21 +430,30 @@ needing anything clicked.
 
 ---
 
-## M10 — Documentation
+## M10 — Documentation and Presentation
 
-This file. Every piece of terminal evidence above is from a command actually
+This file, plus `demo/presentation.pptx` — 11 slides covering project
+overview, tech stack, architecture, CI/CD flow, infrastructure, Kubernetes
+setup, observability and key learnings (the rubric's 8-slide minimum).
+Every piece of terminal evidence in this README is from a command actually
 run this session, against a live `docker compose` stack and a live `kind`
 cluster — not hand-written.
 
+**`demo/` is still missing the presentation video.** It's explicitly marked
+mandatory in the rubric — zero points for this module without it, regardless
+of the slides or README. It's also not something I can produce: it needs a
+human presenting the slides on camera/voice and narrating a live walkthrough
+(pipeline run, codebase, Terraform, Kubernetes, Grafana). That one's on you.
+
 ## Status
 
-Nine of ten modules fully evidenced, including the Helm chart deployed and
-verified on a real `kind` cluster with monitoring wired up end to end. **M7
-(Terraform) is prepared but not applied** — `init`/`validate`/`plan` are done
-and saved (`terraform/tfplan`, 54 resources), but `apply` needs you present,
-for the reasons in the M7 section and `terraform/APPLY.md`. A handful of
-screenshots that need a real display/browser session are also outstanding —
-flagged inline above and in the index below.
+All ten modules have real, verified work behind them. **M7 (Terraform) apply
+is running** — see the live status at the top of this section, updated as
+infrastructure actually comes up. A handful of screenshots that need a real
+browser session are outstanding (flagged inline above and in the index
+below) — paused mid-session because the browser was mid-live-class; text/API
+evidence stands in for all of them. The presentation video (M10) still needs
+you.
 
 ## Cleanup
 
