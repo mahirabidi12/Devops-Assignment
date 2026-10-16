@@ -482,12 +482,12 @@ and p50/p95/p99 duration.
 
 This file. Every screenshot is of a command that was actually run.
 
-## What is not done
+## Status
 
-**`terraform apply` for EKS.** The configuration validates and the plan is
-clean, but no AWS resources were created — see the cost note in M7. The rubric
-asks for an AWS Console screenshot of the cluster, so this is the one module
-with a genuine gap.
+All ten modules complete, including `terraform apply` against a live AWS
+account (M7): 54 resources applied, verified in the Console and the CLI, then
+destroyed in the same sitting. See the M7 screenshots and the cost/teardown
+note above.
 
 ## Cleanup
 
