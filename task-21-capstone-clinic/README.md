@@ -397,9 +397,18 @@ reachable at `http://localhost`, no port-forward needed):
     $ kubectl get hpa -n clinic
     clinic-clinic-backend   cpu: 14%/70%   2   6   2
 
+    $ kubectl get svc -n clinic
+    clinic-clinic-backend    ClusterIP   10.96.198.43   8000/TCP
+    clinic-clinic-frontend   ClusterIP   10.96.171.87   80/TCP
+    clinic-clinic-postgres   ClusterIP   None           5432/TCP
+
+    $ kubectl get ingress -n clinic
+    clinic-clinic   nginx   clinic.local   localhost   80
+
 The HPA is reading real CPU (via `metrics-server`, installed with
-`--kubelet-insecure-tls` for kind), the PVC is bound, and all five pods are
-Running.
+`--kubelet-insecure-tls` for kind), the PVC is bound, all five pods are
+Running, both ClusterIP Services resolve, and the Ingress routes a real host
+header to the right backend.
 
     $ curl -H "Host: clinic.local" http://localhost/api/stats
     {"total":3,"by_status":{"waiting":2,"in_consultation":0,"discharged":1}}
