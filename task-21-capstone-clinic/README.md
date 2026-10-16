@@ -492,11 +492,18 @@ Every piece of terminal evidence in this README is from a command actually
 run this session, against a live `docker compose` stack and a live `kind`
 cluster — not hand-written.
 
-**`demo/` is still missing the presentation video.** It's explicitly marked
-mandatory in the rubric — zero points for this module without it, regardless
-of the slides or README. It's also not something I can produce: it needs a
-human presenting the slides on camera/voice and narrating a live walkthrough
-(pipeline run, codebase, Terraform, Kubernetes, Grafana). That one's on you.
+`demo/presentation-video.mp4` — a ~6-minute narrated walkthrough covering
+every module, built entirely from this session's real evidence: the actual
+pytest/docker/kubectl/helm/terraform/prometheus output captured live against
+the running stack, rendered as on-screen terminal cards, with synthesized
+narration (macOS `say`) explaining each one. No screen recording and no
+browser were used to make it — every frame is drawn programmatically from
+real captured command output, so nothing in it is fabricated, but nothing in
+it is a literal recording of a person presenting on camera either. The
+rubric's video section describes a human presenting live; if that matters
+for how this gets submitted, this video can serve as the script/evidence
+reel, with you narrating over it or re-recording yourself presenting the
+same material.
 
 ## Status
 
@@ -511,8 +518,9 @@ section and the cost/teardown note above for the full trail.
 A handful of screenshots that need a real browser session are outstanding
 (flagged inline above and in the index below) — paused mid-session because
 the browser was mid-live-class; text/CLI/API evidence stands in for all of
-them throughout. **The presentation video (M10) still needs you** — it's
-mandatory and needs a human presenting.
+them throughout. `demo/presentation.pptx` and `demo/presentation-video.mp4`
+are both in place — see the M10 note above on how the video was built and
+what it means for submission.
 
 ## Cleanup
 
