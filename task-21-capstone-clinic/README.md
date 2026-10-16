@@ -492,18 +492,16 @@ Every piece of terminal evidence in this README is from a command actually
 run this session, against a live `docker compose` stack and a live `kind`
 cluster — not hand-written.
 
-`demo/presentation-video.mp4` — a ~6-minute narrated walkthrough covering
-every module, built entirely from this session's real evidence: the actual
-pytest/docker/kubectl/helm/terraform/prometheus output captured live against
-the running stack, rendered as on-screen terminal cards, with synthesized
-narration (macOS `say`) explaining each one. No screen recording and no
-browser were used to make it — every frame is drawn programmatically from
-real captured command output, so nothing in it is fabricated, but nothing in
-it is a literal recording of a person presenting on camera either. The
-rubric's video section describes a human presenting live; if that matters
-for how this gets submitted, this video can serve as the script/evidence
-reel, with you narrating over it or re-recording yourself presenting the
-same material.
+`demo/presentation-video.mp4` — a tight ~80-second product overview: what
+ClinicDesk does, the stack it's built on, and real evidence that the
+pipeline, the live Kubernetes deployment, and the AWS infrastructure all
+actually worked. Built from this session's real captured command output
+(pytest, docker, kubectl/helm, terraform, prometheus), rendered as on-screen
+terminal cards with synthesized narration (macOS `say`) — no screen
+recording or browser involved, so nothing shown is fabricated, but it's also
+not a literal recording of a person presenting on camera. The rubric's video
+section describes a human presenting live; if that matters for submission,
+this can serve as the script/evidence reel to narrate over or re-record.
 
 ## Status
 
