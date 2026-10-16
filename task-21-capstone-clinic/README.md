@@ -347,11 +347,25 @@ immediately after apply with no `aws-auth` edit.
 `terraform destroy` was run immediately after the verification evidence
 above was collected, to keep the billable window as short as possible.
 `destroy` walks the dependency graph backwards: the node group drains before
-the control plane, which goes before the subnets and the NAT gateway. It
-takes 10–15 minutes, and it's worth confirming it finished — an interrupted
-destroy leaves the control plane and the NAT gateway billing, the two
-expensive pieces. Confirmed with `terraform state list` (empty) and
-`aws eks list-clusters --region ap-south-1` (no `clinic-eks`).
+the control plane, which goes before the subnets and the NAT gateway. The
+node group took about 6 minutes to drain; the whole destroy ran ~9 minutes:
+
+    $ terraform destroy -auto-approve
+    Destroy complete! Resources: 54 destroyed.
+
+**Confirmed independently, not just trusting Terraform's own state:**
+
+    $ terraform state list
+    (empty)
+
+    $ aws eks list-clusters --region ap-south-1
+    (empty - no clinic-eks)
+
+    $ aws ec2 describe-vpcs --filters "Name=tag:Project,Values=clinicdesk-capstone"
+    (empty - no VPC)
+
+Total billable window, apply through confirmed destroy: under 40 minutes,
+roughly $0.15 at the ~$0.23/hour rate above. Nothing is left running.
 
 ---
 
@@ -488,13 +502,17 @@ human presenting the slides on camera/voice and narrating a live walkthrough
 
 All ten modules have real, verified work behind them, including
 `terraform apply` against a live AWS account (M7): 54 resources applied,
-verified ACTIVE via both `terraform output` and the AWS CLI independently,
-then destroyed in the same sitting — see the M7 section and the cost/
-teardown note above. A handful of screenshots that need a real browser
-session are outstanding (flagged inline above and in the index below) —
-paused mid-session because the browser was mid-live-class; text/CLI/API
-evidence stands in for all of them throughout. **The presentation video
-(M10) still needs you** — it's mandatory and needs a human presenting.
+`clinic-eks` reached ACTIVE, verified independently via the AWS CLI (not
+just `terraform output`), then **destroyed and confirmed gone** in the same
+sitting — `terraform state list` empty, no cluster or VPC left in the
+account. Total AWS exposure: under 40 minutes, about $0.15. See the M7
+section and the cost/teardown note above for the full trail.
+
+A handful of screenshots that need a real browser session are outstanding
+(flagged inline above and in the index below) — paused mid-session because
+the browser was mid-live-class; text/CLI/API evidence stands in for all of
+them throughout. **The presentation video (M10) still needs you** — it's
+mandatory and needs a human presenting.
 
 ## Cleanup
 
