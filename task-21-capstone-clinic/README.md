@@ -367,6 +367,16 @@ node group took about 6 minutes to drain; the whole destroy ran ~9 minutes:
 Total billable window, apply through confirmed destroy: under 40 minutes,
 roughly $0.15 at the ~$0.23/hour rate above. Nothing is left running.
 
+**A second apply/destroy cycle was run later in the same session**, solely
+to capture a real AWS Console screenshot for the presentation video (the
+first cluster had already been destroyed before that need came up). Same
+result: 54 resources applied, `clinic-eks` reached ACTIVE and was confirmed
+independently via the AWS CLI and a live Console screenshot
+(`screenshots/M7-02-eks-console.png`), then `terraform destroy` was run
+immediately after and confirmed clean the same way — `terraform state list`
+empty, `aws eks list-clusters` empty. Total exposure for the second cycle
+was also well under an hour.
+
 ---
 
 ## M8 — Kubernetes and Helm
